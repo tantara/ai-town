@@ -1,13 +1,13 @@
-import { GameId } from '../../convex/aiTown/ids.ts';
-import { AgentDescription } from '../../convex/aiTown/agentDescription.ts';
-import { PlayerDescription } from '../../convex/aiTown/playerDescription.ts';
-import { World } from '../../convex/aiTown/world.ts';
-import { WorldMap } from '../../convex/aiTown/worldMap.ts';
+import { GameId } from '../../convex/aiTown/ids';
+import { AgentDescription } from '../../convex/aiTown/agentDescription';
+import { PlayerDescription } from '../../convex/aiTown/playerDescription';
+import { World } from '../../convex/aiTown/world';
+import { WorldMap } from '../../convex/aiTown/worldMap';
 import { Id } from '../../convex/_generated/dataModel';
 import { useMemo } from 'react';
 import { useQuery } from 'convex/react';
 import { api } from '../../convex/_generated/api';
-import { parseMap } from '../../convex/util/object.ts';
+import { parseMap } from '../../convex/util/object';
 
 export type ServerGame = {
   world: World;

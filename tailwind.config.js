@@ -1,6 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-  content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
+  content: ['./src/**/*.{js,ts,jsx,tsx}'],
   theme: {
     fontFamily: {
       display: ['var(--font-display)', 'sans-serif'],
@@ -23,6 +23,14 @@ module.exports = {
           500: '#5A6988',
           700: '#3A4466',
           900: '#181425',
+        },
+        safari: {
+          50: '#f3faec',
+          100: '#dff3c8',
+          300: '#a5d168',
+          500: '#5d9e2a',
+          700: '#3a6f1a',
+          900: '#1f3d0e',
         },
       },
     },
