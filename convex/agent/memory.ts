@@ -4,8 +4,8 @@ import { Doc, Id } from '../_generated/dataModel';
 import { internal } from '../_generated/api';
 import { LLMMessage, chatCompletion, fetchEmbedding } from '../util/llm';
 import { asyncMap } from '../util/asyncMap';
-import { GameId, agentId, conversationId, playerId } from '../aiTown/ids';
-import { SerializedPlayer } from '../aiTown/player';
+import { GameId, agentId, conversationId, playerId } from '../aiWorld/ids';
+import { SerializedPlayer } from '../aiWorld/player';
 import { memoryFields } from './schema';
 
 // How long to wait before updating a memory's last access time.

@@ -1,4 +1,4 @@
-# Hosting AI Town on Fly.io
+# Hosting AI World on Fly.io
 
 Fly.io makes it easy to deploy containers to the cloud.
 
@@ -26,7 +26,7 @@ git clone https://github.com/ai-town/ai-town.git
    npx convex deploy
    ```
 
-3. Deploy the AI Town frontend and point it to the Convex backend.
+3. Deploy the AI World frontend and point it to the Convex backend.
 
    You can get the convex url from the output of the `npx convex deploy` command. Or you can get it
    from the [Convex dashboard](https://dashboard.convex.dev/deployment/settings) listed as
@@ -65,7 +65,7 @@ If you want to self-host the Convex backend on Fly.io, you can follow these step
    ```
 
    Note the Fly URL of the deployed backend. Like
-   `https://ai-town-convex-backend-1234567890.fly.dev`.
+   `https://ai-world-convex-backend-1234567890.fly.dev`.
 
    Note: you can't scale the backends to more than 1 machine. It is stateful.
 
@@ -89,12 +89,12 @@ If you want to self-host the Convex backend on Fly.io, you can follow these step
    fly ssh console --command "./generate_admin_key.sh"
    ```
 
-   Unless you edited the app's `fly.toml`, the name is `ai-town-convex-backend`. If you specified a
-   different name, replace `ai-town-convex-backend` with it.
+   Unless you edited the app's `fly.toml`, the name is `ai-world-convex-backend`. If you specified a
+   different name, replace `ai-world-convex-backend` with it.
 
    This admin key will be used to authorize the CLI and access the dashboard.
 
-4. In the root directory of the AI Town repository (`cd ../..`), create a `.env.local` file with the
+4. In the root directory of the AI World repository (`cd ../..`), create a `.env.local` file with the
    following variables:
 
    ```sh
@@ -104,7 +104,7 @@ If you want to self-host the Convex backend on Fly.io, you can follow these step
 
 5. Deploy your Convex functions to the backend using the `convex` CLI from the project root.
 
-   To deploy the AI Town functions to the backend and start the game engine:
+   To deploy the AI World functions to the backend and start the game engine:
 
    ```sh
    npx convex dev --run init --once

@@ -1,4 +1,4 @@
-# AI Town 🏠💻💌
+# AI World 🏠💻💌
 
 [Live Demo](https://www.convex.dev/ai-town)
 
@@ -6,7 +6,7 @@
 
 <img width="1454" alt="Screen Shot 2023-08-14 at 10 01 00 AM" src="https://github.com/a16z-infra/ai-town/assets/3489963/a4c91f17-23ed-47ec-8c4e-9f9a8505057d">
 
-AI Town is a virtual town where AI characters live, chat and socialize.
+AI World is a virtual town where AI characters live, chat and socialize.
 
 This project is a deployable starter kit for easily building and customizing your own version of AI
 town. Inspired by the research paper
@@ -81,7 +81,7 @@ Note, if you're on Windows, see [below](#windows-installation).
 
 ```sh
 git clone https://github.com/a16z-infra/ai-town.git
-cd ai-town
+cd ai-world
 npm install
 ```
 

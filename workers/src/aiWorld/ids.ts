@@ -1,4 +1,4 @@
-// Branded GameId<T> helper. Identical to convex/aiTown/ids.ts but with the
+// Branded GameId<T> helper. Identical to convex/aiWorld/ids.ts but with the
 // `convex/values` runtime validators stripped — input validation is handled
 // at the Worker boundary with Zod.
 

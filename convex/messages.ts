@@ -1,7 +1,7 @@
 import { v } from 'convex/values';
 import { mutation, query } from './_generated/server';
-import { insertInput } from './aiTown/insertInput';
-import { conversationId, playerId } from './aiTown/ids';
+import { insertInput } from './aiWorld/insertInput';
+import { conversationId, playerId } from './aiWorld/ids';
 
 export const listMessages = query({
   args: {

@@ -9,7 +9,7 @@ import { serializedWorldMap } from './worldMap';
 import { serializedConversation } from './conversation';
 import { conversationId, playerId } from './ids';
 
-export const aiTownTables = {
+export const aiWorldTables = {
   // This table has a single document that stores all players, conversations, and agents. This
   // data is small and changes regularly over time.
   worlds: defineTable({ ...serializedWorld }),

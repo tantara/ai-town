@@ -5,7 +5,7 @@ import { LLMMessage, chatCompletion } from '../util/llm';
 import * as memory from './memory';
 import { api, internal } from '../_generated/api';
 import * as embeddingsCache from './embeddingsCache';
-import { GameId, conversationId, playerId } from '../aiTown/ids';
+import { GameId, conversationId, playerId } from '../aiWorld/ids';
 import { NUM_MEMORIES_TO_SEARCH } from '../constants';
 
 const selfInternal = internal.agent.conversation;

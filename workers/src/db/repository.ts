@@ -13,7 +13,7 @@ import {
   SerializedPlayerDescription,
   SerializedWorldMap,
   SerializedAgent,
-} from '../aiTown/types';
+} from '../aiWorld/types';
 
 // ---- Engine -----------------------------------------------------------------
 export async function loadEngine(db: DB, engineId: string): Promise<EngineDoc> {

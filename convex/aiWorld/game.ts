@@ -205,7 +205,7 @@ export class Game extends AbstractGame {
 
   async saveStep(ctx: ActionCtx, engineUpdate: EngineUpdate): Promise<void> {
     const diff = this.takeDiff();
-    await ctx.runMutation(internal.aiTown.game.saveWorld, {
+    await ctx.runMutation(internal.aiWorld.game.saveWorld, {
       engineId: this.engine._id,
       engineUpdate,
       worldId: this.worldId,

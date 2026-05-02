@@ -6,8 +6,8 @@ import { cn } from '@/lib/utils';
 import { MessageRow } from '@/components/ui/message-bubble';
 import { useSendInputFireAndForget } from '../hooks/sendInput';
 import { useWriteMessage } from '../hooks/useWriteMessage';
-import { Player } from '../../convex/aiTown/player';
-import { Conversation } from '../../convex/aiTown/conversation';
+import { Player } from '../../convex/aiWorld/player';
+import { Conversation } from '../../convex/aiWorld/conversation';
 import { useGameDescriptions } from '../hooks/useGameDescriptions';
 
 type MessageInputProps = {

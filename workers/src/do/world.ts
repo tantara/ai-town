@@ -10,10 +10,10 @@
 import type { Env } from '../env';
 import { adminDb, DB } from '../db/supabase';
 import * as repo from '../db/repository';
-import { Game } from '../aiTown/game';
+import { Game } from '../aiWorld/game';
 import { applyEngineUpdate } from '../engine/abstractGame';
 import { saveGameDiff } from '../db/repository';
-import { ENGINE_ACTION_DURATION, STEP_INTERVAL } from '../aiTown/constants';
+import { ENGINE_ACTION_DURATION, STEP_INTERVAL } from '../aiWorld/constants';
 
 type ClientMessage =
   | { type: 'subscribe' }

@@ -10,12 +10,12 @@ import {
 import { v } from 'convex/values';
 import schema from './schema';
 import { DELETE_BATCH_SIZE } from './constants';
-import { kickEngine, startEngine, stopEngine } from './aiTown/main';
-import { insertInput } from './aiTown/insertInput';
+import { kickEngine, startEngine, stopEngine } from './aiWorld/main';
+import { insertInput } from './aiWorld/insertInput';
 import { fetchEmbedding } from './util/llm';
 import { chatCompletion } from './util/llm';
 import { startConversationMessage } from './agent/conversation';
-import { GameId } from './aiTown/ids';
+import { GameId } from './aiWorld/ids';
 
 // Clear all of the tables except for the embeddings cache.
 const excludedTables: Array<TableNames> = ['embeddingsCache'];

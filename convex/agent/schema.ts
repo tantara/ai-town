@@ -1,5 +1,5 @@
 import { v } from 'convex/values';
-import { playerId, conversationId } from '../aiTown/ids';
+import { playerId, conversationId } from '../aiWorld/ids';
 import { defineTable } from 'convex/server';
 import { EMBEDDING_DIMENSION } from '../util/llm';
 

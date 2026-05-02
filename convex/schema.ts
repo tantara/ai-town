@@ -1,8 +1,8 @@
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 import { agentTables } from './agent/schema';
-import { aiTownTables } from './aiTown/schema';
-import { conversationId, playerId } from './aiTown/ids';
+import { aiWorldTables } from './aiWorld/schema';
+import { conversationId, playerId } from './aiWorld/ids';
 import { engineTables } from './engine/schema';
 
 export default defineSchema({
@@ -22,6 +22,6 @@ export default defineSchema({
     .index('messageUuid', ['conversationId', 'messageUuid']),
 
   ...agentTables,
-  ...aiTownTables,
+  ...aiWorldTables,
   ...engineTables,
 });
