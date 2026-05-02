@@ -1,19 +1,19 @@
 import * as PIXI from 'pixi.js';
 import { useApp } from '@pixi/react';
-import { Player, SelectElement } from './Player.tsx';
+import { Player, SelectElement } from './Player';
 import { useEffect, useRef, useState } from 'react';
-import { PixiStaticMap } from './PixiStaticMap.tsx';
-import PixiViewport from './PixiViewport.tsx';
+import { PixiStaticMap } from './PixiStaticMap';
+import PixiViewport from './PixiViewport';
 import { Viewport } from 'pixi-viewport';
 import { Id } from '../../convex/_generated/dataModel';
 import { useQuery } from 'convex/react';
 import { api } from '../../convex/_generated/api.js';
-import { useSendInput } from '../hooks/sendInput.ts';
-import { toastOnError } from '../toasts.ts';
-import { DebugPath } from './DebugPath.tsx';
-import { PositionIndicator } from './PositionIndicator.tsx';
-import { SHOW_DEBUG_UI } from './Game.tsx';
-import { ServerGame } from '../hooks/serverGame.ts';
+import { useSendInput } from '../hooks/sendInput';
+import { toastOnError } from '../toasts';
+import { DebugPath } from './DebugPath';
+import { PositionIndicator } from './PositionIndicator';
+import { SHOW_DEBUG_UI } from './Game';
+import { ServerGame } from '../hooks/serverGame';
 
 export const PixiGame = (props: {
   worldId: Id<'worlds'>;

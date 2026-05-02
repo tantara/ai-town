@@ -1,5 +1,6 @@
+'use client';
+
 import { useCallback, useEffect, useState } from 'react';
-import volumeImg from '../../../assets/volume.svg';
 import { sound } from '@pixi/sound';
 import Button from './Button';
 import { useQuery } from 'convex/react';
@@ -44,7 +45,7 @@ export default function MusicButton() {
         onClick={() => void flipSwitch()}
         className="hidden lg:block"
         title="Play AI generated music (press m to play/mute)"
-        imgUrl={volumeImg}
+        imgUrl="/assets/volume.svg"
       >
         {isPlaying ? 'Mute' : 'Music'}
       </Button>

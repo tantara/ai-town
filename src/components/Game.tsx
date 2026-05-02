@@ -1,18 +1,20 @@
+'use client';
+
 import { useRef, useState } from 'react';
-import PixiGame from './PixiGame.tsx';
+import PixiGame from './PixiGame';
 
 import { useElementSize } from 'usehooks-ts';
 import { Stage } from '@pixi/react';
 import { ConvexProvider, useConvex, useQuery } from 'convex/react';
-import PlayerDetails from './PlayerDetails.tsx';
+import PlayerDetails from './PlayerDetails';
 import { api } from '../../convex/_generated/api';
-import { useWorldHeartbeat } from '../hooks/useWorldHeartbeat.ts';
-import { useHistoricalTime } from '../hooks/useHistoricalTime.ts';
-import { DebugTimeManager } from './DebugTimeManager.tsx';
-import { GameId } from '../../convex/aiTown/ids.ts';
-import { useServerGame } from '../hooks/serverGame.ts';
+import { useWorldHeartbeat } from '../hooks/useWorldHeartbeat';
+import { useHistoricalTime } from '../hooks/useHistoricalTime';
+import { DebugTimeManager } from './DebugTimeManager';
+import { GameId } from '../../convex/aiTown/ids';
+import { useServerGame } from '../hooks/serverGame';
 
-export const SHOW_DEBUG_UI = !!import.meta.env.VITE_SHOW_DEBUG_UI;
+export const SHOW_DEBUG_UI = !!process.env.NEXT_PUBLIC_SHOW_DEBUG_UI;
 
 export default function Game() {
   const convex = useConvex();

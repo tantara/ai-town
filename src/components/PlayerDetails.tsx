@@ -1,7 +1,9 @@
+'use client';
+
 import { useQuery } from 'convex/react';
+import { useSession } from 'next-auth/react';
 import { api } from '../../convex/_generated/api';
 import { Id } from '../../convex/_generated/dataModel';
-import closeImg from '../../assets/close.svg';
 import { SelectElement } from './Player';
 import { Messages } from './Messages';
 import { toastOnError } from '../toasts';
@@ -25,7 +27,13 @@ export default function PlayerDetails({
   setSelectedElement: SelectElement;
   scrollViewRef: React.RefObject<HTMLDivElement>;
 }) {
-  const humanTokenIdentifier = useQuery(api.world.userStatus, { worldId });
+  const { data: session } = useSession();
+  const tokenIdentifier =
+    (session?.user as { id?: string } | undefined)?.id ??
+    session?.user?.email ??
+    session?.user?.name ??
+    undefined;
+  const humanTokenIdentifier = useQuery(api.world.userStatus, { worldId, tokenIdentifier });
 
   const players = [...game.world.players.values()];
   const humanPlayer = players.find((p) => p.human === humanTokenIdentifier);
@@ -144,7 +152,8 @@ export default function PlayerDetails({
           onClick={() => setSelectedElement(undefined)}
         >
           <h2 className="h-full bg-clay-700">
-            <img className="w-4 h-4 sm:w-5 sm:h-5" src={closeImg} />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img className="w-4 h-4 sm:w-5 sm:h-5" src="/assets/close.svg" alt="close" />
           </h2>
         </a>
       </div>
