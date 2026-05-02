@@ -2,15 +2,48 @@
 
 import { useQuery } from 'convex/react';
 import { useSession } from 'next-auth/react';
+
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { api } from '../../convex/_generated/api';
 import { Id } from '../../convex/_generated/dataModel';
 import { SelectElement } from './Player';
 import { Messages } from './Messages';
 import { toastOnError } from '../toasts';
 import { useSendInput } from '../hooks/sendInput';
-import { Player } from '../../convex/aiTown/player';
 import { GameId } from '../../convex/aiTown/ids';
 import { ServerGame } from '../hooks/serverGame';
+
+type ConversationActionProps = {
+  onClick?: () => void;
+  disabled?: boolean;
+  children: React.ReactNode;
+};
+
+function ConversationAction({ onClick, disabled, children }: ConversationActionProps) {
+  return (
+    <Button
+      variant="game"
+      size="game"
+      className={cn('mt-6 text-xl cursor-pointer', disabled && 'opacity-50')}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      <span className="block w-full bg-clay-700 text-center">
+        <span>{children}</span>
+      </span>
+    </Button>
+  );
+}
+
+type PlayerDetailsProps = {
+  worldId: Id<'worlds'>;
+  engineId: Id<'engines'>;
+  game: ServerGame;
+  playerId?: GameId<'players'>;
+  setSelectedElement: SelectElement;
+  scrollViewRef: React.RefObject<HTMLDivElement>;
+};
 
 export default function PlayerDetails({
   worldId,
@@ -19,14 +52,7 @@ export default function PlayerDetails({
   playerId,
   setSelectedElement,
   scrollViewRef,
-}: {
-  worldId: Id<'worlds'>;
-  engineId: Id<'engines'>;
-  game: ServerGame;
-  playerId?: GameId<'players'>;
-  setSelectedElement: SelectElement;
-  scrollViewRef: React.RefObject<HTMLDivElement>;
-}) {
+}: PlayerDetailsProps) {
   const { data: session } = useSession();
   const tokenIdentifier =
     (session?.user as { id?: string } | undefined)?.id ??
@@ -96,49 +122,28 @@ export default function PlayerDetails({
     humanStatus?.kind === 'participating';
 
   const onStartConversation = async () => {
-    if (!humanPlayer || !playerId) {
-      return;
-    }
-    console.log(`Starting conversation`);
+    if (!humanPlayer || !playerId) return;
     await toastOnError(startConversation({ playerId: humanPlayer.id, invitee: playerId }));
   };
   const onAcceptInvite = async () => {
-    if (!humanPlayer || !humanConversation || !playerId) {
-      return;
-    }
+    if (!humanPlayer || !humanConversation || !playerId) return;
     await toastOnError(
-      acceptInvite({
-        playerId: humanPlayer.id,
-        conversationId: humanConversation.id,
-      }),
+      acceptInvite({ playerId: humanPlayer.id, conversationId: humanConversation.id }),
     );
   };
   const onRejectInvite = async () => {
-    if (!humanPlayer || !humanConversation) {
-      return;
-    }
+    if (!humanPlayer || !humanConversation) return;
     await toastOnError(
-      rejectInvite({
-        playerId: humanPlayer.id,
-        conversationId: humanConversation.id,
-      }),
+      rejectInvite({ playerId: humanPlayer.id, conversationId: humanConversation.id }),
     );
   };
   const onLeaveConversation = async () => {
-    if (!humanPlayer || !inConversationWithMe || !humanConversation) {
-      return;
-    }
+    if (!humanPlayer || !inConversationWithMe || !humanConversation) return;
     await toastOnError(
-      leaveConversation({
-        playerId: humanPlayer.id,
-        conversationId: humanConversation.id,
-      }),
+      leaveConversation({ playerId: humanPlayer.id, conversationId: humanConversation.id }),
     );
   };
-  // const pendingSuffix = (inputName: string) =>
-  //   [...inflightInputs.values()].find((i) => i.name === inputName) ? ' opacity-50' : '';
 
-  const pendingSuffix = (s: string) => '';
   return (
     <>
       <div className="flex gap-4">
@@ -147,80 +152,30 @@ export default function PlayerDetails({
             {playerDescription?.name}
           </h2>
         </div>
-        <a
-          className="button text-white shadow-solid text-2xl cursor-pointer pointer-events-auto"
+        <Button
+          variant="game"
+          size="game"
+          className="text-2xl cursor-pointer"
           onClick={() => setSelectedElement(undefined)}
         >
-          <h2 className="h-full bg-clay-700">
+          <span className="h-full bg-clay-700">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img className="w-4 h-4 sm:w-5 sm:h-5" src="/assets/close.svg" alt="close" />
-          </h2>
-        </a>
+          </span>
+        </Button>
       </div>
       {canInvite && (
-        <a
-          className={
-            'mt-6 button text-white shadow-solid text-xl cursor-pointer pointer-events-auto' +
-            pendingSuffix('startConversation')
-          }
-          onClick={onStartConversation}
-        >
-          <div className="h-full bg-clay-700 text-center">
-            <span>Start conversation</span>
-          </div>
-        </a>
+        <ConversationAction onClick={onStartConversation}>Start conversation</ConversationAction>
       )}
-      {waitingForAccept && (
-        <a className="mt-6 button text-white shadow-solid text-xl cursor-pointer pointer-events-auto opacity-50">
-          <div className="h-full bg-clay-700 text-center">
-            <span>Waiting for accept...</span>
-          </div>
-        </a>
-      )}
-      {waitingForNearby && (
-        <a className="mt-6 button text-white shadow-solid text-xl cursor-pointer pointer-events-auto opacity-50">
-          <div className="h-full bg-clay-700 text-center">
-            <span>Walking over...</span>
-          </div>
-        </a>
-      )}
+      {waitingForAccept && <ConversationAction disabled>Waiting for accept...</ConversationAction>}
+      {waitingForNearby && <ConversationAction disabled>Walking over...</ConversationAction>}
       {inConversationWithMe && (
-        <a
-          className={
-            'mt-6 button text-white shadow-solid text-xl cursor-pointer pointer-events-auto' +
-            pendingSuffix('leaveConversation')
-          }
-          onClick={onLeaveConversation}
-        >
-          <div className="h-full bg-clay-700 text-center">
-            <span>Leave conversation</span>
-          </div>
-        </a>
+        <ConversationAction onClick={onLeaveConversation}>Leave conversation</ConversationAction>
       )}
       {haveInvite && (
         <>
-          <a
-            className={
-              'mt-6 button text-white shadow-solid text-xl cursor-pointer pointer-events-auto' +
-              pendingSuffix('acceptInvite')
-            }
-            onClick={onAcceptInvite}
-          >
-            <div className="h-full bg-clay-700 text-center">
-              <span>Accept</span>
-            </div>
-          </a>
-          <a
-            className={
-              'mt-6 button text-white shadow-solid text-xl cursor-pointer pointer-events-auto' +
-              pendingSuffix('rejectInvite')
-            }
-            onClick={onRejectInvite}
-          >
-            <div className="h-full bg-clay-700 text-center">
-              <span>Reject</span>
-            </div>
-          </a>
+          <ConversationAction onClick={onAcceptInvite}>Accept</ConversationAction>
+          <ConversationAction onClick={onRejectInvite}>Reject</ConversationAction>
         </>
       )}
       {!playerConversation && player.activity && player.activity.until > Date.now() && (

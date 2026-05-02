@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import 'uplot/dist/uPlot.min.css';
-import 'react-toastify/dist/ReactToastify.css';
 import Providers from '@/components/Providers';
 
 export const metadata: Metadata = {

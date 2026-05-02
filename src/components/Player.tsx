@@ -1,7 +1,7 @@
 import { Character } from './Character';
 import { orientationDegrees } from '../../convex/util/geometry';
 import { characters } from '../../data/characters';
-import { toast } from 'react-toastify';
+import { toast } from 'sonner';
 import { Player as ServerPlayer } from '../../convex/aiTown/player';
 import { GameId } from '../../convex/aiTown/ids';
 import { Id } from '../../convex/_generated/dataModel';
