@@ -1,7 +1,14 @@
-import { Doc } from '../../convex/_generated/dataModel';
 import { useEffect, useRef, useState } from 'react';
 
-export function useHistoricalTime(engineStatus?: Doc<'engines'>) {
+// Engine snapshot shape sent by the Worker DO. We only need the time fields.
+export type EngineSnapshot = {
+  currentTime?: number;
+  lastStepTs?: number;
+  generationNumber: number;
+  running: boolean;
+};
+
+export function useHistoricalTime(engineStatus?: EngineSnapshot) {
   const timeManager = useRef(new HistoricalTimeManager());
   const rafRef = useRef<number>();
   const [historicalTime, setHistoricalTime] = useState<number | undefined>(undefined);
@@ -32,9 +39,9 @@ export class HistoricalTimeManager {
   prevServerTs?: number;
   totalDuration: number = 0;
 
-  latestEngineStatus?: Doc<'engines'>;
+  latestEngineStatus?: EngineSnapshot;
 
-  receive(engineStatus: Doc<'engines'>) {
+  receive(engineStatus: EngineSnapshot) {
     this.latestEngineStatus = engineStatus;
     if (!engineStatus.currentTime || !engineStatus.lastStepTs) {
       return;

@@ -1,18 +1,17 @@
 'use client';
 
-import { useQuery } from 'convex/react';
 import { useSession } from 'next-auth/react';
 
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { api } from '../../convex/_generated/api';
-import { Id } from '../../convex/_generated/dataModel';
 import { SelectElement } from './Player';
 import { Messages } from './Messages';
 import { toastOnError } from '../toasts';
 import { useSendInput } from '../hooks/sendInput';
 import { GameId } from '../../convex/aiTown/ids';
 import { ServerGame } from '../hooks/serverGame';
+import { useUserStatus } from '../hooks/useUserStatus';
+import { usePreviousConversation } from '../hooks/usePreviousConversation';
 
 type ConversationActionProps = {
   onClick?: () => void;
@@ -37,8 +36,8 @@ function ConversationAction({ onClick, disabled, children }: ConversationActionP
 }
 
 type PlayerDetailsProps = {
-  worldId: Id<'worlds'>;
-  engineId: Id<'engines'>;
+  worldId: string;
+  engineId: string;
   game: ServerGame;
   playerId?: GameId<'players'>;
   setSelectedElement: SelectElement;
@@ -59,12 +58,11 @@ export default function PlayerDetails({
     session?.user?.email ??
     session?.user?.name ??
     undefined;
-  const humanTokenIdentifier = useQuery(api.world.userStatus, { worldId, tokenIdentifier });
+  const humanTokenIdentifier = useUserStatus(tokenIdentifier);
 
   const players = [...game.world.players.values()];
   const humanPlayer = players.find((p) => p.human === humanTokenIdentifier);
   const humanConversation = humanPlayer ? game.world.playerConversation(humanPlayer) : undefined;
-  // Always select the other player if we're in a conversation with them.
   if (humanPlayer && humanConversation) {
     const otherPlayerIds = [...humanConversation.participants.keys()].filter(
       (p) => p !== humanPlayer.id,
@@ -74,18 +72,13 @@ export default function PlayerDetails({
 
   const player = playerId && game.world.players.get(playerId);
   const playerConversation = player && game.world.playerConversation(player);
-
-  const previousConversation = useQuery(
-    api.world.previousConversation,
-    playerId ? { worldId, playerId } : 'skip',
-  );
-
+  const previousConversation = usePreviousConversation(worldId, playerId);
   const playerDescription = playerId && game.playerDescriptions.get(playerId);
 
-  const startConversation = useSendInput(engineId, 'startConversation');
-  const acceptInvite = useSendInput(engineId, 'acceptInvite');
-  const rejectInvite = useSendInput(engineId, 'rejectInvite');
-  const leaveConversation = useSendInput(engineId, 'leaveConversation');
+  const startConversation = useSendInput(worldId, 'startConversation');
+  const acceptInvite = useSendInput(worldId, 'acceptInvite');
+  const rejectInvite = useSendInput(worldId, 'rejectInvite');
+  const leaveConversation = useSendInput(worldId, 'leaveConversation');
 
   if (!playerId) {
     return (
@@ -94,9 +87,7 @@ export default function PlayerDetails({
       </div>
     );
   }
-  if (!player) {
-    return null;
-  }
+  if (!player) return null;
   const isMe = humanPlayer && player.id === humanPlayer.id;
   const canInvite = !isMe && !playerConversation && humanPlayer && !humanConversation;
   const sameConversation =
@@ -115,7 +106,6 @@ export default function PlayerDetails({
     sameConversation && playerConversation.participants.get(playerId)?.status.kind === 'invited';
   const waitingForNearby =
     sameConversation && playerStatus?.kind === 'walkingOver' && humanStatus?.kind === 'walkingOver';
-
   const inConversationWithMe =
     sameConversation &&
     playerStatus?.kind === 'participating' &&

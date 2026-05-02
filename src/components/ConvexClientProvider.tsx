@@ -1,21 +1,11 @@
 'use client';
 
-import { ReactNode, useMemo } from 'react';
-import { ConvexReactClient, ConvexProvider } from 'convex/react';
+// Kept as a no-op wrapper so existing imports (`<ConvexClientProvider>`) don't
+// break. The new architecture talks directly to Supabase and the Worker, so
+// no provider context is needed at the React tree level.
 
-function convexUrl(): string {
-  const url = process.env.NEXT_PUBLIC_CONVEX_URL;
-  if (!url) {
-    throw new Error("Couldn't find the Convex deployment URL (NEXT_PUBLIC_CONVEX_URL).");
-  }
-  return url;
-}
+import { ReactNode } from 'react';
 
 export default function ConvexClientProvider({ children }: { children: ReactNode }) {
-  const convex = useMemo(
-    () => new ConvexReactClient(convexUrl(), { unsavedChangesWarning: false }),
-    [],
-  );
-
-  return <ConvexProvider client={convex}>{children}</ConvexProvider>;
+  return <>{children}</>;
 }

@@ -1,42 +1,36 @@
 'use client';
 
 import { KeyboardEvent, useRef } from 'react';
-import { useMutation, useQuery } from 'convex/react';
 
 import { cn } from '@/lib/utils';
 import { MessageRow } from '@/components/ui/message-bubble';
-import { api } from '../../convex/_generated/api';
-import { Id } from '../../convex/_generated/dataModel';
-import { useSendInput } from '../hooks/sendInput';
+import { useSendInputFireAndForget } from '../hooks/sendInput';
+import { useWriteMessage } from '../hooks/useWriteMessage';
 import { Player } from '../../convex/aiTown/player';
 import { Conversation } from '../../convex/aiTown/conversation';
+import { useGameDescriptions } from '../hooks/useGameDescriptions';
 
 type MessageInputProps = {
-  worldId: Id<'worlds'>;
-  engineId: Id<'engines'>;
+  worldId: string;
+  engineId: string;
   humanPlayer: Player;
   conversation: Conversation;
 };
 
-export function MessageInput({ worldId, engineId, humanPlayer, conversation }: MessageInputProps) {
-  const descriptions = useQuery(api.world.gameDescriptions, { worldId });
-  const humanName = descriptions?.playerDescriptions.find(
-    (p) => p.playerId === humanPlayer.id,
-  )?.name;
+export function MessageInput({ worldId, humanPlayer, conversation }: MessageInputProps) {
+  const descriptions = useGameDescriptions(worldId);
+  const humanName = descriptions?.playerDescriptions.find((p) => p.playerId === humanPlayer.id)?.name;
 
   const inputRef = useRef<HTMLParagraphElement>(null);
   const inflightUuid = useRef<string | undefined>(undefined);
-  const writeMessage = useMutation(api.messages.writeMessage);
-  const startTyping = useSendInput(engineId, 'startTyping');
+  const writeMessage = useWriteMessage();
+  const startTyping = useSendInputFireAndForget(worldId, 'startTyping');
   const currentlyTyping = conversation.isTyping;
 
   const onKeyDown = async (e: KeyboardEvent<HTMLParagraphElement>) => {
     e.stopPropagation();
-
     if (e.key !== 'Enter') {
-      if (currentlyTyping || inflightUuid.current !== undefined) {
-        return;
-      }
+      if (currentlyTyping || inflightUuid.current !== undefined) return;
       inflightUuid.current = crypto.randomUUID();
       try {
         await startTyping({
@@ -49,16 +43,11 @@ export function MessageInput({ worldId, engineId, humanPlayer, conversation }: M
       }
       return;
     }
-
     e.preventDefault();
-    if (!inputRef.current) {
-      return;
-    }
+    if (!inputRef.current) return;
     const text = inputRef.current.innerText;
     inputRef.current.innerText = '';
-    if (!text) {
-      return;
-    }
+    if (!text) return;
     let messageUuid = inflightUuid.current;
     if (currentlyTyping && currentlyTyping.playerId === humanPlayer.id) {
       messageUuid = currentlyTyping.messageUuid;

@@ -1,0 +1,203 @@
+// Per-world Durable Object. Replaces Convex's "engine action" loop:
+//   - Holds the Game in memory between ticks (no DB roundtrip per tick).
+//   - DO Alarm = tick scheduler (replacement for ctx.scheduler.runAfter).
+//   - WebSocket Hibernation = reactive client state stream.
+//   - Postgres (via Repository) is the durable store of record.
+//
+// Each world is addressed by a DO id derived from `worldId` (UUID), so all
+// requests for the same world land on the same single-threaded actor.
+
+import type { Env } from '../env';
+import { adminDb, DB } from '../db/supabase';
+import * as repo from '../db/repository';
+import { Game } from '../aiTown/game';
+import { applyEngineUpdate } from '../engine/abstractGame';
+import { saveGameDiff } from '../db/repository';
+import { ENGINE_ACTION_DURATION, STEP_INTERVAL } from '../aiTown/constants';
+
+type ClientMessage =
+  | { type: 'subscribe' }
+  | { type: 'sendInput'; name: string; args: any; correlationId?: string };
+
+type ServerMessage =
+  | { type: 'snapshot'; engine: any; world: any }
+  | { type: 'inputAccepted'; correlationId: string; inputId: string }
+  | { type: 'inputResult'; inputId: string; result: any }
+  | { type: 'error'; message: string };
+
+export class WorldDO implements DurableObject {
+  private worldId: string | null = null;
+  private game: Game | null = null;
+  private db: DB;
+  private state: DurableObjectState;
+  private env: Env;
+
+  constructor(state: DurableObjectState, env: Env) {
+    this.state = state;
+    this.env = env;
+    this.db = adminDb(env);
+  }
+
+  // ------------------------------------------------------------------ HTTP --
+  async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url);
+
+    // First request after wake binds this DO to a worldId. We pass it via
+    // `?worldId=...` from the Worker entrypoint.
+    const worldId = url.searchParams.get('worldId');
+    if (worldId) this.worldId = worldId;
+    if (!this.worldId) return new Response('worldId required', { status: 400 });
+
+    // WebSocket upgrade — used by the browser for live game-state streaming.
+    if (request.headers.get('Upgrade') === 'websocket') {
+      const pair = new WebSocketPair();
+      const [client, server] = [pair[0], pair[1]];
+      this.state.acceptWebSocket(server);
+      return new Response(null, { status: 101, webSocket: client });
+    }
+
+    if (url.pathname.endsWith('/sendInput') && request.method === 'POST') {
+      const body = (await request.json()) as { name: string; args: any };
+      await this.ensureGame();
+      const inputId = await repo.insertInput(this.db, this.game!.engine.id, body.name, body.args);
+      // Schedule a tick soon if one isn't already pending.
+      await this.ensureAlarm();
+      return Response.json({ inputId });
+    }
+
+    if (url.pathname.endsWith('/start') && request.method === 'POST') {
+      await this.ensureGame();
+      await this.ensureAlarm();
+      return Response.json({ ok: true });
+    }
+
+    if (url.pathname.endsWith('/snapshot') && request.method === 'GET') {
+      await this.ensureGame();
+      return Response.json(this.snapshot());
+    }
+
+    return new Response('Not found', { status: 404 });
+  }
+
+  // -------------------------------------------------------- WebSocket events
+  async webSocketMessage(ws: WebSocket, message: ArrayBuffer | string) {
+    let parsed: ClientMessage;
+    try {
+      parsed = JSON.parse(typeof message === 'string' ? message : new TextDecoder().decode(message));
+    } catch {
+      return;
+    }
+    try {
+      if (parsed.type === 'subscribe') {
+        await this.ensureGame();
+        ws.send(JSON.stringify(this.snapshotMessage()));
+        await this.ensureAlarm();
+      } else if (parsed.type === 'sendInput') {
+        await this.ensureGame();
+        const inputId = await repo.insertInput(
+          this.db,
+          this.game!.engine.id,
+          parsed.name,
+          parsed.args,
+        );
+        if (parsed.correlationId) {
+          ws.send(
+            JSON.stringify({ type: 'inputAccepted', correlationId: parsed.correlationId, inputId }),
+          );
+        }
+        await this.ensureAlarm();
+      }
+    } catch (e: any) {
+      ws.send(JSON.stringify({ type: 'error', message: e.message } satisfies ServerMessage));
+    }
+  }
+
+  webSocketClose(_ws: WebSocket, _code: number, _reason: string, _wasClean: boolean) {
+    // Hibernation API tracks sockets for us.
+  }
+
+  // --------------------------------------------------------------- Alarm ----
+  // The DO Alarm fires our tick loop. Each fire runs one engine step and
+  // schedules the next alarm at `now + STEP_INTERVAL`. The Game's in-memory
+  // state survives between alarms because the DO instance stays alive.
+  async alarm() {
+    try {
+      await this.ensureGame();
+      const now = Date.now();
+      const { update, diff } = await this.game!.runStep(this.db, now);
+      await applyEngineUpdate(this.db, this.game!.engine.id, update);
+      await saveGameDiff(this.db, this.worldId!, diff);
+      this.broadcastSnapshot();
+
+      // Dispatch agent operations (LLM calls). We fire-and-forget — the
+      // operations call back via `sendInput` when complete.
+      for (const op of diff.agentOperations) {
+        this.dispatchAgentOperation(op.name, op.args).catch((e) =>
+          console.error(`Agent operation ${op.name} failed:`, e),
+        );
+      }
+
+      // Reschedule if the world is still running and there's work to do.
+      const status = await repo.getWorldStatus(this.db, this.worldId!);
+      if (status?.status === 'running') {
+        await this.state.storage.setAlarm(Date.now() + STEP_INTERVAL);
+      }
+    } catch (e) {
+      console.error('Alarm failed:', e);
+      // Retry shortly so a transient error doesn't stall the world.
+      await this.state.storage.setAlarm(Date.now() + 5_000);
+    }
+  }
+
+  // ---------------------------------------------------------------- helpers
+  private async ensureGame() {
+    if (!this.worldId) throw new Error('DO bound without worldId');
+    if (!this.game) this.game = await Game.load(this.db, this.worldId);
+  }
+
+  private async ensureAlarm() {
+    const existing = await this.state.storage.getAlarm();
+    if (!existing) await this.state.storage.setAlarm(Date.now() + 50);
+  }
+
+  private snapshot() {
+    return {
+      engine: this.game!.engine,
+      world: this.game!.world.serialize(),
+    };
+  }
+
+  private snapshotMessage(): ServerMessage {
+    return { type: 'snapshot', engine: this.game!.engine, world: this.game!.world.serialize() };
+  }
+
+  private broadcastSnapshot() {
+    if (!this.game) return;
+    const msg = JSON.stringify(this.snapshotMessage());
+    for (const ws of this.state.getWebSockets()) {
+      try {
+        ws.send(msg);
+      } catch {
+        // Sockets that have errored are GC'd by the runtime.
+      }
+    }
+  }
+
+  // Dispatches an agent operation by calling the Worker's internal operation
+  // endpoint. The Worker has more time/CPU than a single Alarm tick and can
+  // safely talk to slow LLMs.
+  private async dispatchAgentOperation(name: string, args: any) {
+    // The Worker exposes itself to the DO via the `service` binding; for
+    // simplicity here we use the public URL via env (set OPERATIONS_URL).
+    // In a real deploy you'd bind a Service Worker so this is in-process.
+    if (!(this.env as any).OPERATIONS_URL) {
+      console.warn('OPERATIONS_URL not set; agent operations disabled');
+      return;
+    }
+    await fetch((this.env as any).OPERATIONS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ worldId: this.worldId, name, args }),
+    });
+  }
+}

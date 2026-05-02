@@ -1,21 +1,30 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { useQuery } from 'convex/react';
 
 import { MessageBubble, MessageRow } from '@/components/ui/message-bubble';
-import { Doc, Id } from '../../convex/_generated/dataModel';
-import { api } from '../../convex/_generated/api';
 import { MessageInput } from './MessageInput';
 import { Player } from '../../convex/aiTown/player';
 import { Conversation } from '../../convex/aiTown/conversation';
+import { useGameDescriptions } from '../hooks/useGameDescriptions';
+import { useMessages } from '../hooks/useMessages';
+
+type ArchivedConversation = {
+  id: string;
+  creator: string;
+  created: number;
+  ended: number;
+  numMessages: number;
+  participants: string[];
+  lastMessage: any;
+};
 
 type MessagesProps = {
-  worldId: Id<'worlds'>;
-  engineId: Id<'engines'>;
+  worldId: string;
+  engineId: string;
   conversation:
     | { kind: 'active'; doc: Conversation }
-    | { kind: 'archived'; doc: Doc<'archivedConversations'> };
+    | { kind: 'archived'; doc: ArchivedConversation };
   inConversationWithMe: boolean;
   humanPlayer?: Player;
   scrollViewRef: React.RefObject<HTMLDivElement>;
@@ -30,11 +39,8 @@ export function Messages({
   scrollViewRef,
 }: MessagesProps) {
   const humanPlayerId = humanPlayer?.id;
-  const descriptions = useQuery(api.world.gameDescriptions, { worldId });
-  const messages = useQuery(api.messages.listMessages, {
-    worldId,
-    conversationId: conversation.doc.id,
-  });
+  const descriptions = useGameDescriptions(worldId);
+  const messages = useMessages(worldId, conversation.doc.id);
 
   let currentlyTyping = conversation.kind === 'active' ? conversation.doc.isTyping : undefined;
   if (messages !== undefined && currentlyTyping) {
@@ -49,8 +55,7 @@ export function Messages({
   const scrollView = scrollViewRef.current;
   const isScrolledToBottom = useRef(false);
   useEffect(() => {
-    if (!scrollView) return undefined;
-
+    if (!scrollView) return;
     const onScroll = () => {
       isScrolledToBottom.current = !!(
         scrollView && scrollView.scrollHeight - scrollView.scrollTop - 50 <= scrollView.clientHeight
@@ -68,12 +73,8 @@ export function Messages({
     }
   }, [messages, currentlyTyping, scrollViewRef]);
 
-  if (messages === undefined) {
-    return null;
-  }
-  if (messages.length === 0 && !inConversationWithMe) {
-    return null;
-  }
+  if (messages === undefined) return null;
+  if (messages.length === 0 && !inConversationWithMe) return null;
 
   type TimelineNode = { time: number; node: React.ReactNode };
 
@@ -86,15 +87,12 @@ export function Messages({
     ),
   }));
 
-  const lastMessageTs = messages
-    .map((m) => m._creationTime)
-    .reduce((a, b) => Math.max(a, b), 0);
+  const lastMessageTs = messages.map((m) => m._creationTime).reduce((a, b) => Math.max(a, b), 0);
 
   const membershipNodes: TimelineNode[] = [];
   if (conversation.kind === 'active') {
     for (const [playerId, m] of conversation.doc.participants) {
-      const playerName = descriptions?.playerDescriptions.find((p) => p.playerId === playerId)
-        ?.name;
+      const playerName = descriptions?.playerDescriptions.find((p) => p.playerId === playerId)?.name;
       const started = m.status.kind === 'participating' ? m.status.started : undefined;
       if (started) {
         membershipNodes.push({
@@ -109,8 +107,7 @@ export function Messages({
     }
   } else {
     for (const playerId of conversation.doc.participants) {
-      const playerName = descriptions?.playerDescriptions.find((p) => p.playerId === playerId)
-        ?.name;
+      const playerName = descriptions?.playerDescriptions.find((p) => p.playerId === playerId)?.name;
       const started = conversation.doc.created;
       const ended = conversation.doc.ended;
       membershipNodes.push({
@@ -122,7 +119,6 @@ export function Messages({
         ),
       });
       membershipNodes.push({
-        // Always sort all "left" messages after the last message.
         time: Math.max(lastMessageTs + 1, ended),
         node: (
           <div key={`left-${playerId}`} className="leading-tight mb-6">
