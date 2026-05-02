@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 export type EngineSnapshot = {
   currentTime?: number;
   lastStepTs?: number;
+  processedInputNumber?: number;
   generationNumber: number;
   running: boolean;
 };

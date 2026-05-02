@@ -8,12 +8,12 @@
 // requests for the same world land on the same single-threaded actor.
 
 import type { Env } from '../env';
-import { adminDb, DB } from '../db/supabase';
-import * as repo from '../db/repository';
-import { Game } from '../aiWorld/game';
-import { applyEngineUpdate } from '../engine/abstractGame';
-import { saveGameDiff } from '../db/repository';
-import { ENGINE_ACTION_DURATION, STEP_INTERVAL } from '../aiWorld/constants';
+import { adminDb, DB } from '../../../shared/db/supabase';
+import * as repo from '../../../shared/db/repository';
+import { Game } from '../../../shared/aiWorld/game';
+import { applyEngineUpdate } from '../../../shared/engine/abstractGame';
+import { saveGameDiff } from '../../../shared/db/repository';
+import { ENGINE_ACTION_DURATION, STEP_INTERVAL } from '../../../shared/aiWorld/constants';
 
 type ClientMessage =
   | { type: 'subscribe' }

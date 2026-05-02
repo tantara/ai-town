@@ -2,11 +2,11 @@
 // pgvector. This is a straight port of convex/agent/memory.ts adapted to use
 // Postgres rather than Convex's vectorSearch.
 
-import type { DB } from '../db/supabase';
+import type { DB } from '../../../shared/db/supabase';
 import type { Env } from '../env';
-import { chatCompletion, fetchEmbedding, LLMMessage } from '../util/llm';
-import { listMessages } from '../db/repository';
-import { asyncMap } from '../util/asyncMap';
+import { chatCompletion, fetchEmbedding, LLMMessage } from '../../../shared/util/llm';
+import { listMessages } from '../../../shared/db/repository';
+import { asyncMap } from '../../../shared/util/asyncMap';
 
 export const MEMORY_ACCESS_THROTTLE = 300_000;
 const MEMORY_OVERFETCH = 10;

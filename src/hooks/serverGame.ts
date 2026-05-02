@@ -1,12 +1,12 @@
 'use client';
 
 import { useMemo } from 'react';
-import { GameId } from '../../convex/aiWorld/ids';
-import { AgentDescription } from '../../convex/aiWorld/agentDescription';
-import { PlayerDescription } from '../../convex/aiWorld/playerDescription';
-import { World } from '../../convex/aiWorld/world';
-import { WorldMap } from '../../convex/aiWorld/worldMap';
-import { parseMap } from '../../convex/util/object';
+import { GameId } from '../../shared/aiWorld/ids';
+import { AgentDescription } from '../../shared/aiWorld/agentDescription';
+import { PlayerDescription } from '../../shared/aiWorld/playerDescription';
+import { World } from '../../shared/aiWorld/world';
+import { WorldMap } from '../../shared/aiWorld/worldMap';
+import { parseMap } from '../../shared/util/object';
 import { useWorldState } from './useWorldState';
 import { useGameDescriptions } from './useGameDescriptions';
 

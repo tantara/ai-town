@@ -6,6 +6,8 @@
 //   GET  /world/:worldId/inputs/:id    -> input result (poll fallback for non-WS)
 //   POST /world/:worldId/heartbeat
 //   POST /world/:worldId/start
+//   POST /world/:worldId/freeze        -> sets world_status='stoppedByDeveloper'
+//   POST /world/:worldId/resume        -> sets world_status='running' + kicks DO
 //   POST /agentOperations              -> internal callback used by the DO
 //
 // All durable game state lives in the per-world Durable Object; persistent
@@ -13,9 +15,10 @@
 
 import type { Env } from './env';
 import { WorldDO } from './do/world';
-import { adminDb } from './db/supabase';
-import * as repo from './db/repository';
+import { adminDb } from '../../shared/db/supabase';
+import * as repo from '../../shared/db/repository';
 import { operations } from './agent/operations';
+import { freezeWorld, resumeWorld } from './lifecycle';
 
 export { WorldDO };
 
@@ -67,6 +70,14 @@ export default {
         }
         if (rest === 'start' && request.method === 'POST') {
           return forward(stub, `https://world/start?worldId=${worldId}`, {});
+        }
+        if (rest === 'freeze' && request.method === 'POST') {
+          const result = await freezeWorld(adminDb(env), worldId);
+          return json({ ok: true, ...result });
+        }
+        if (rest === 'resume' && request.method === 'POST') {
+          const result = await resumeWorld(adminDb(env), stub, worldId);
+          return json({ ok: true, ...result });
         }
         if (rest === 'snapshot') {
           return stub.fetch(`https://world/snapshot?worldId=${worldId}`, request);
