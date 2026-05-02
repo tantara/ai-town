@@ -13,6 +13,7 @@ import { Toaster } from '@/components/ui/sonner';
 
 import Game from './Game';
 import MusicButton from './buttons/MusicButton';
+import MusicUploadButton from './buttons/MusicUploadButton';
 import Button from './buttons/Button';
 import InteractButton from './buttons/InteractButton';
 import FreezeButton from './FreezeButton';
@@ -88,6 +89,7 @@ export default function Home() {
           <div className="flex gap-4 flex-grow pointer-events-none">
             <FreezeButton />
             <MusicButton />
+            <MusicUploadButton />
             <Button href="https://github.com/a16z-infra/ai-town" imgUrl="/assets/star.svg">
               Star
             </Button>
