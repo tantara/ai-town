@@ -1,16 +1,15 @@
 'use client';
 
 import { useCallback } from 'react';
-import { useConvex, useMutation, useQuery } from 'convex/react';
-import { ConvexError } from 'convex/values';
 import { useSession, signIn } from 'next-auth/react';
 import { toast } from 'sonner';
 
 import Button from './Button';
-import { api } from '../../../convex/_generated/api';
-import { Id } from '../../../convex/_generated/dataModel';
-import { waitForInput } from '../../hooks/sendInput';
 import { useServerGame } from '../../hooks/serverGame';
+import { useDefaultWorldStatus } from '../../hooks/useWorldStatus';
+import { useUserStatus } from '../../hooks/useUserStatus';
+import { getGameClient } from '@/lib/game-client';
+import { characters } from '../../../data/characters';
 
 export default function InteractButton() {
   const { status: authStatus, data: session } = useSession();
@@ -22,54 +21,51 @@ export default function InteractButton() {
     undefined;
   const displayName = session?.user?.name ?? undefined;
 
-  const worldStatus = useQuery(api.world.defaultWorldStatus);
-  const worldId = worldStatus?.worldId;
+  const worldStatus = useDefaultWorldStatus();
+  const worldId = worldStatus?.world_id;
   const game = useServerGame(worldId);
-  const humanTokenIdentifier = useQuery(
-    api.world.userStatus,
-    worldId ? { worldId, tokenIdentifier } : 'skip',
-  );
+  const humanTokenIdentifier = useUserStatus(tokenIdentifier);
   const userPlayerId =
     game && [...game.world.players.values()].find((p) => p.human === humanTokenIdentifier)?.id;
-  const join = useMutation(api.world.joinWorld);
-  const leave = useMutation(api.world.leaveWorld);
   const isPlaying = !!userPlayerId;
 
-  const convex = useConvex();
-  const joinInput = useCallback(
-    async (worldId: Id<'worlds'>) => {
-      let inputId;
+  const join = useCallback(
+    async (worldId: string) => {
+      const name = displayName ?? humanTokenIdentifier;
+      const character = characters[Math.floor(Math.random() * characters.length)].name;
       try {
-        inputId = await join({ worldId, tokenIdentifier, displayName });
-      } catch (e) {
-        if (e instanceof ConvexError) {
-          toast.error(typeof e.data === 'string' ? e.data : JSON.stringify(e.data));
-          return;
-        }
-        throw e;
-      }
-      try {
-        await waitForInput(convex, inputId);
+        const client = getGameClient(worldId);
+        const inputId = await client.sendInput('join', {
+          name,
+          character,
+          description: `${name} is a human visitor exploring the AI Zoo.`,
+          tokenIdentifier: humanTokenIdentifier,
+        });
+        await client.waitForInput(inputId);
       } catch (e) {
         toast.error(e instanceof Error ? e.message : String(e));
       }
     },
-    [convex, join, tokenIdentifier, displayName],
+    [displayName, humanTokenIdentifier],
+  );
+
+  const leave = useCallback(
+    async (worldId: string) => {
+      if (!userPlayerId) return;
+      const client = getGameClient(worldId);
+      await client.sendInput('leave', { playerId: userPlayerId });
+    },
+    [userPlayerId],
   );
 
   const joinOrLeaveGame = () => {
-    if (!worldId || game === undefined) {
-      return;
-    }
+    if (!worldId || game === undefined) return;
     if (!isAuthenticated) {
       void signIn(undefined, { callbackUrl: '/' });
       return;
     }
-    if (isPlaying) {
-      void leave({ worldId, tokenIdentifier });
-    } else {
-      void joinInput(worldId);
-    }
+    if (isPlaying) void leave(worldId);
+    else void join(worldId);
   };
 
   return (

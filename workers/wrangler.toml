@@ -1,0 +1,22 @@
+name = "ai-town"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+# One Durable Object class = one game world container.
+[[durable_objects.bindings]]
+name = "WORLD"
+class_name = "WorldDO"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["WorldDO"]
+
+# Secrets (set via `wrangler secret put`):
+#   SUPABASE_URL
+#   SUPABASE_SERVICE_ROLE_KEY
+#   OPENAI_API_KEY                 (or TOGETHER_API_KEY / OLLAMA_HOST)
+#   LLM_PROVIDER                   (openai | together | ollama | custom)
+[vars]
+LLM_PROVIDER = "ollama"
+OLLAMA_HOST  = "http://127.0.0.1:11434"

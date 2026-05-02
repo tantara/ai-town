@@ -1,51 +1,30 @@
-import { ConvexReactClient, useConvex } from 'convex/react';
-import { InputArgs, InputReturnValue, Inputs } from '../../convex/aiTown/inputs';
-import { api } from '../../convex/_generated/api';
-import { Id } from '../../convex/_generated/dataModel';
+'use client';
 
-export async function waitForInput(convex: ConvexReactClient, inputId: Id<'inputs'>) {
-  const watch = convex.watchQuery(api.aiTown.main.inputStatus, { inputId });
-  let result = watch.localQueryResult();
-  // The result's undefined if the query's loading and null if the input hasn't
-  // been processed yet.
-  if (result === undefined || result === null) {
-    let dispose: undefined | (() => void);
-    try {
-      await new Promise<void>((resolve, reject) => {
-        dispose = watch.onUpdate(() => {
-          try {
-            result = watch.localQueryResult();
-          } catch (e: any) {
-            reject(e);
-            return;
-          }
-          if (result !== undefined && result !== null) {
-            resolve();
-          }
-        });
-      });
-    } finally {
-      if (dispose) {
-        dispose();
-      }
-    }
-  }
-  if (!result) {
-    throw new Error(`Input ${inputId} was never processed.`);
-  }
-  if (result.kind === 'error') {
-    throw new Error(result.message);
-  }
-  return result.value;
+import { getGameClient } from '@/lib/game-client';
+
+// Drop-in replacement for the previous Convex-backed `useSendInput`. Submits
+// an input to the per-world Durable Object and (optionally) waits for the
+// engine to process it.
+export function useSendInput<Args = any, Return = any>(
+  worldId: string | undefined,
+  name: string,
+): (args: Args) => Promise<Return> {
+  return async (args: Args) => {
+    if (!worldId) throw new Error('No worldId');
+    const client = getGameClient(worldId);
+    const inputId = await client.sendInput(name, args);
+    return await client.waitForInput(inputId);
+  };
 }
 
-export function useSendInput<Name extends keyof Inputs>(
-  engineId: Id<'engines'>,
-  name: Name,
-): (args: InputArgs<Name>) => Promise<InputReturnValue<Name>> {
-  const convex = useConvex();
-  return async (args) => {
-    const inputId = await convex.mutation(api.world.sendWorldInput, { engineId, name, args });
-    return await waitForInput(convex, inputId);
+// Used when fire-and-forget semantics are fine (e.g. `startTyping`).
+export function useSendInputFireAndForget<Args = any>(
+  worldId: string | undefined,
+  name: string,
+): (args: Args) => Promise<void> {
+  return async (args: Args) => {
+    if (!worldId) throw new Error('No worldId');
+    const client = getGameClient(worldId);
+    await client.sendInput(name, args);
   };
 }

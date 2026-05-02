@@ -1,30 +1,23 @@
 'use client';
 
-import { useMutation, useQuery } from 'convex/react';
-
-import { api } from '../../convex/_generated/api';
 import Button from './buttons/Button';
+import { useDefaultWorldStatus } from '../hooks/useWorldStatus';
+import { WORKER_URL } from '@/lib/supabase';
 
+// Toggles the world's lifecycle by hitting the Worker. The Worker exposes a
+// `/freeze` and `/resume` route per world; the DO reads world_status before
+// each tick so the change takes effect within ~1s.
 export default function FreezeButton() {
-  const stopAllowed = useQuery(api.testing.stopAllowed) ?? false;
-  const defaultWorld = useQuery(api.world.defaultWorldStatus);
-
-  const frozen = defaultWorld?.status === 'stoppedByDeveloper';
-
-  const unfreeze = useMutation(api.testing.resume);
-  const freeze = useMutation(api.testing.stop);
+  const status = useDefaultWorldStatus();
+  if (!status) return null;
+  const frozen = status.status === 'stoppedByDeveloper';
 
   const flipSwitch = async () => {
-    if (frozen) {
-      await unfreeze();
-    } else {
-      await freeze();
-    }
+    if (!WORKER_URL) return;
+    await fetch(`${WORKER_URL}/world/${status.world_id}/${frozen ? 'resume' : 'freeze'}`, {
+      method: 'POST',
+    });
   };
-
-  if (!stopAllowed) {
-    return null;
-  }
 
   return (
     <Button

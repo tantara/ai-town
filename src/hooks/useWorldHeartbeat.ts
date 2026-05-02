@@ -1,30 +1,25 @@
-import { useMutation, useQuery } from 'convex/react';
+'use client';
+
 import { useEffect } from 'react';
-import { api } from '../../convex/_generated/api';
 import { WORLD_HEARTBEAT_INTERVAL } from '../../convex/constants';
+import { useDefaultWorldStatus } from './useWorldStatus';
+import { WORKER_URL } from '@/lib/supabase';
 
+// Pings the Worker so it bumps `last_viewed` on the world_status row. The
+// Worker's DO uses that to decide whether to keep ticking.
 export function useWorldHeartbeat() {
-  const worldStatus = useQuery(api.world.defaultWorldStatus);
-  const worldId = worldStatus?.worldId;
+  const status = useDefaultWorldStatus();
+  const worldId = status?.world_id;
 
-  // Send a periodic heartbeat to our world to keep it alive.
-  const heartbeat = useMutation(api.world.heartbeatWorld);
   useEffect(() => {
-    const sendHeartBeat = () => {
-      if (!worldStatus) {
-        return;
-      }
-      // Don't send a heartbeat if we've observed one sufficiently close
-      // to the present.
-      if (Date.now() - WORLD_HEARTBEAT_INTERVAL / 2 < worldStatus.lastViewed) {
-        return;
-      }
-      void heartbeat({ worldId: worldStatus.worldId });
+    if (!worldId) return;
+    const beat = () => {
+      if (!status) return;
+      if (Date.now() - WORLD_HEARTBEAT_INTERVAL / 2 < Number(status.last_viewed)) return;
+      void fetch(`${WORKER_URL}/world/${worldId}/heartbeat`, { method: 'POST' });
     };
-    sendHeartBeat();
-    const id = setInterval(sendHeartBeat, WORLD_HEARTBEAT_INTERVAL);
+    beat();
+    const id = setInterval(beat, WORLD_HEARTBEAT_INTERVAL);
     return () => clearInterval(id);
-    // Rerun if the `worldId` changes but not `worldStatus`, since don't want to
-    // resend the heartbeat whenever its last viewed timestamp changes.
-  }, [worldId, heartbeat]);
+  }, [worldId]);
 }
