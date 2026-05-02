@@ -10,8 +10,9 @@ export function parseGameId<T extends IdTypes>(idType: T, gameId: string): GameI
   const type = gameId[0];
   const match = Object.entries(IdShortCodes).find(([_, value]) => value === type);
   if (!match || match[0] !== idType) throw new Error(`Invalid game ID type: ${type}`);
-  const number = parseInt(gameId.slice(2), 10);
-  if (isNaN(number) || !Number.isInteger(number) || number < 0) {
+  // Require an explicit ':<non-negative integer>' suffix. Using parseInt alone
+  // would silently accept fractional inputs like 'p:1.5' (parsed as 1).
+  if (gameId[1] !== ':' || !/^\d+$/.test(gameId.slice(2))) {
     throw new Error(`Invalid game ID number: ${gameId}`);
   }
   return gameId as GameId<T>;

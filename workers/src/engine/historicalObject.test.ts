@@ -42,21 +42,18 @@ describe('packSampleRecord', () => {
       expect(Math.abs(initialValue - unpackedInitialValue)).toBeLessThanOrEqual(maxError);
       expect(samples.length).toEqual(unpackedSamples.length);
       for (let i = 0; i < samples.length; i++) {
-        const sample = samples[i];
-        const unpackedSample = unpackedSamples[i];
-        expect(sample.time).toEqual(unpackedSample.time);
-        expect(Math.abs(sample.value - unpackedSample.value)).toBeLessThanOrEqual(maxError);
+        expect(samples[i].time).toEqual(unpackedSamples[i].time);
+        expect(Math.abs(samples[i].value - unpackedSamples[i].value)).toBeLessThanOrEqual(maxError);
       }
     }
   });
 
-  test('skips fields with no samples without breaking the buffer layout', () => {
+  test('skips fields with no samples', () => {
     const fields = [
       { name: 'x', precision: 4 },
       { name: 'y', precision: 4 },
     ];
     const data: Record<string, History> = {
-      // y has no samples; only x should be encoded.
       x: { initialValue: 0, samples: [{ time: 1000, value: 1 }] },
     };
     const packed = packSampleRecord(fields, data);
@@ -71,8 +68,6 @@ describe('packSampleRecord', () => {
       x: { initialValue: 0, samples: [{ time: 1, value: 1 }] },
     };
     const packed = packSampleRecord(writeFields, data);
-
-    // Different precision changes the config hash → unpacking should fail.
     const readFields = [{ name: 'x', precision: 8 }];
     expect(() => unpackSampleRecord(readFields, packed)).toThrow(/Config hash mismatch/);
   });
@@ -88,9 +83,7 @@ describe('HistoricalObject', () => {
   test('constructor rejects more than 16 fields', () => {
     const fields = Array.from({ length: 17 }, (_, i) => `f${i}`);
     const initial = Object.fromEntries(fields.map((f) => [f, 0])) as Record<string, number>;
-    expect(() => new HistoricalObject(fields, initial)).toThrow(
-      /at most 16 fields/,
-    );
+    expect(() => new HistoricalObject(fields, initial)).toThrow(/at most 16 fields/);
   });
 
   test('rejects undeclared fields and non-numeric values', () => {
@@ -107,7 +100,6 @@ describe('HistoricalObject', () => {
     expect(obj.historyLength()).toBe(1);
     expect(obj.history.x.initialValue).toBe(0);
     expect(obj.history.x.samples).toEqual([{ time: 2, value: 1 }]);
-    // y has not changed yet, so no history entry was created for it.
     expect(obj.history.y).toBeUndefined();
   });
 
