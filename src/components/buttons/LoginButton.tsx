@@ -2,15 +2,18 @@
 
 import { signIn } from 'next-auth/react';
 
+import { Button } from '@/components/ui/button';
+
 export default function LoginButton() {
   return (
-    <button
-      className="button text-white shadow-solid"
+    <Button
+      variant="game"
+      size="game"
       onClick={() => signIn(undefined, { callbackUrl: '/' })}
     >
-      <div className="inline-block bg-clay-700">
+      <span className="inline-block bg-clay-700">
         <span>Log in</span>
-      </div>
-    </button>
+      </span>
+    </Button>
   );
 }

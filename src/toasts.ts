@@ -1,10 +1,11 @@
-import { toast } from 'react-toastify';
+import { toast } from 'sonner';
 
 export async function toastOnError<T>(promise: Promise<T>): Promise<T> {
   try {
     return await promise;
-  } catch (error: any) {
-    toast.error(error.message);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    toast.error(message);
     throw error;
   }
 }

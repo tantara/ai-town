@@ -1,44 +1,44 @@
-import clsx from 'clsx';
+'use client';
+
+import { KeyboardEvent, useRef } from 'react';
 import { useMutation, useQuery } from 'convex/react';
-import { KeyboardEvent, useRef, useState } from 'react';
+
+import { cn } from '@/lib/utils';
+import { MessageRow } from '@/components/ui/message-bubble';
 import { api } from '../../convex/_generated/api';
 import { Id } from '../../convex/_generated/dataModel';
 import { useSendInput } from '../hooks/sendInput';
 import { Player } from '../../convex/aiTown/player';
 import { Conversation } from '../../convex/aiTown/conversation';
 
-export function MessageInput({
-  worldId,
-  engineId,
-  humanPlayer,
-  conversation,
-}: {
+type MessageInputProps = {
   worldId: Id<'worlds'>;
   engineId: Id<'engines'>;
   humanPlayer: Player;
   conversation: Conversation;
-}) {
+};
+
+export function MessageInput({ worldId, engineId, humanPlayer, conversation }: MessageInputProps) {
   const descriptions = useQuery(api.world.gameDescriptions, { worldId });
-  const humanName = descriptions?.playerDescriptions.find((p) => p.playerId === humanPlayer.id)
-    ?.name;
+  const humanName = descriptions?.playerDescriptions.find(
+    (p) => p.playerId === humanPlayer.id,
+  )?.name;
+
   const inputRef = useRef<HTMLParagraphElement>(null);
-  const inflightUuid = useRef<string | undefined>();
+  const inflightUuid = useRef<string | undefined>(undefined);
   const writeMessage = useMutation(api.messages.writeMessage);
   const startTyping = useSendInput(engineId, 'startTyping');
   const currentlyTyping = conversation.isTyping;
 
-  const onKeyDown = async (e: KeyboardEvent) => {
+  const onKeyDown = async (e: KeyboardEvent<HTMLParagraphElement>) => {
     e.stopPropagation();
 
-    // Set the typing indicator if we're not submitting.
     if (e.key !== 'Enter') {
-      console.log(inflightUuid.current);
       if (currentlyTyping || inflightUuid.current !== undefined) {
         return;
       }
       inflightUuid.current = crypto.randomUUID();
       try {
-        // Don't show a toast on error.
         await startTyping({
           playerId: humanPlayer.id,
           conversationId: conversation.id,
@@ -50,7 +50,6 @@ export function MessageInput({
       return;
     }
 
-    // Send the current message.
     e.preventDefault();
     if (!inputRef.current) {
       return;
@@ -73,22 +72,21 @@ export function MessageInput({
       messageUuid,
     });
   };
+
   return (
-    <div className="leading-tight mb-6">
-      <div className="flex gap-4">
-        <span className="uppercase flex-grow">{humanName}</span>
-      </div>
-      <div className={clsx('bubble', 'bubble-mine')}>
+    <MessageRow authorName={humanName}>
+      <div className={cn('bubble', 'bubble-mine')}>
         <p
           className="bg-white -mx-3 -my-1"
           ref={inputRef}
           contentEditable
           style={{ outline: 'none' }}
           tabIndex={0}
+          // @ts-expect-error: placeholder is read by CSS, not a standard <p> attr.
           placeholder="Type here"
-          onKeyDown={(e) => onKeyDown(e)}
+          onKeyDown={onKeyDown}
         />
       </div>
-    </div>
+    </MessageRow>
   );
 }

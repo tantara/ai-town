@@ -1,9 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import ReactModal from 'react-modal';
-import { ToastContainer } from 'react-toastify';
 import { useSession } from 'next-auth/react';
+
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Toaster } from '@/components/ui/sonner';
 
 import Game from './Game';
 import MusicButton from './buttons/MusicButton';
@@ -16,22 +22,18 @@ import PoweredByConvex from './PoweredByConvex';
 import { MAX_HUMAN_PLAYERS } from '../../convex/constants';
 
 export default function Home() {
-  const [helpModalOpen, setHelpModalOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const { status } = useSession();
 
   return (
     <main className="relative flex min-h-screen flex-col items-center justify-between font-body game-background">
       <PoweredByConvex />
 
-      <ReactModal
-        isOpen={helpModalOpen}
-        onRequestClose={() => setHelpModalOpen(false)}
-        style={modalStyles}
-        contentLabel="Help modal"
-        ariaHideApp={false}
-      >
-        <div className="font-body">
-          <h1 className="text-center text-6xl font-bold font-display game-title">Help</h1>
+      <Dialog open={helpOpen} onOpenChange={setHelpOpen}>
+        <DialogContent className="font-body">
+          <DialogHeader>
+            <DialogTitle>Help</DialogTitle>
+          </DialogHeader>
           <p>
             Welcome to AI Zoo. AI Zoo supports both anonymous <i>spectators</i> and logged in{' '}
             <i>interactivity</i>.
@@ -60,8 +62,8 @@ export default function Home() {
             AI Zoo supports {MAX_HUMAN_PLAYERS} humans at a time. If you're idle for five minutes,
             you'll be automatically removed from the simulation.
           </p>
-        </div>
-      </ReactModal>
+        </DialogContent>
+      </Dialog>
 
       <div className="p-3 absolute top-0 right-0 z-10 text-2xl">
         {status === 'authenticated' ? <UserButton /> : <LoginButton />}
@@ -93,7 +95,7 @@ export default function Home() {
               Star
             </Button>
             <InteractButton />
-            <Button imgUrl="/assets/help.svg" onClick={() => setHelpModalOpen(true)}>
+            <Button imgUrl="/assets/help.svg" onClick={() => setHelpOpen(true)}>
               Help
             </Button>
           </div>
@@ -106,30 +108,8 @@ export default function Home() {
             <img className="w-20 h-8 pointer-events-auto" src="/assets/convex.svg" alt="Convex" />
           </a>
         </footer>
-        <ToastContainer position="bottom-right" autoClose={2000} closeOnClick theme="dark" />
+        <Toaster />
       </div>
     </main>
   );
 }
-
-const modalStyles = {
-  overlay: {
-    backgroundColor: 'rgb(0, 0, 0, 75%)',
-    zIndex: 12,
-  },
-  content: {
-    top: '50%',
-    left: '50%',
-    right: 'auto',
-    bottom: 'auto',
-    marginRight: '-50%',
-    transform: 'translate(-50%, -50%)',
-    maxWidth: '50%',
-
-    border: '10px solid rgb(23, 20, 33)',
-    borderRadius: '0',
-    background: 'rgb(35, 38, 58)',
-    color: 'white',
-    fontFamily: '"Upheaval Pro", "sans-serif"',
-  },
-};
