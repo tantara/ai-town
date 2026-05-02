@@ -60,11 +60,13 @@ ai-world/
 │       ├── index.ts          ← HTTP routes (incl. /freeze, /resume)
 │       ├── lifecycle.ts      ← freezeWorld / resumeWorld helpers
 │       ├── do/world.ts       ← Durable Object (game loop)
+│       ├── do/tick.ts        ← pure tick + WS fanout + message helpers
 │       ├── agent/            ← LLM operations + memory + prompts
 │       └── env.ts            ← Worker bindings
 ├── scripts/seed.ts           ← creates default world + queues agents
 └── src/                      ← Next.js frontend (Supabase + WS)
     ├── lib/{supabase,game-client}.ts
+    ├── app/api/music/upload/ ← server-side music upload (NextAuth-gated)
     └── hooks/                ← Convex hook replacements
 ```
 
@@ -136,7 +138,8 @@ Set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and
 | `useQuery(api.world.gameDescriptions, ...)` | `useGameDescriptions(worldId)` |
 | `useQuery(api.messages.listMessages, ...)` | `useMessages(worldId, conversationId)` |
 | `useQuery(api.world.previousConversation, ...)` | `usePreviousConversation(...)` |
-| `useQuery(api.music.getBackgroundMusic)` | `useBackgroundMusic()` |
+| `useQuery(api.music.getBackgroundMusic)` | `useBackgroundMusic()` (auto-refreshes on `ai-zoo:music-changed`) |
+| Replicate webhook → `api.music.storeMusic` | `POST /api/music/upload` (multipart, NextAuth-gated; uploads to the `music` Supabase Storage bucket and inserts into `public.music`) |
 | `useQuery(api.world.userStatus, ...)` | `useUserStatus(token)` |
 | `useMutation(api.world.heartbeatWorld)` | `useWorldHeartbeat()` (auto) |
 | `useMutation(api.messages.writeMessage)` | `useWriteMessage()` |
@@ -168,18 +171,27 @@ Coverage today:
 - `shared/util/` — geometry, compression, asyncMap, minheap, types, object
 - `shared/aiWorld/` — ids, location
 - `shared/engine/` — historicalObject
-- `shared/db/repository.test.ts` — engine inputs, world status, world heartbeat
+- `shared/db/repository.test.ts` — engine inputs, world status, world
+  heartbeat, message inserts, the four-query `loadGameState` aggregation, and
+  `saveGameDiff` (world replace, removed-player/conversation/agent archival,
+  participated-together edges, description upserts)
 - `shared/util/llm.test.ts` — provider selection (OpenAI / OpenRouter /
   Together / custom / Ollama fallback) and the `LLM_PROVIDER` override
 - `workers/src/lifecycle.test.ts` — `freezeWorld` / `resumeWorld` against a
   mocked DB and DO stub, including the "DB write fails → DO is not kicked"
   invariant
+- `workers/src/do/tick.test.ts` — the DO tick loop and WebSocket fanout. The
+  testable logic was extracted from `WorldDO` into `workers/src/do/tick.ts`
+  (`runAlarmCycle`, `handleClientMessage`, `broadcastSnapshot`,
+  `snapshotMessage`) so the alarm path, the subscribe / sendInput message
+  handling, and the per-socket fanout can all be exercised with plain DB
+  and socket mocks instead of standing up miniflare.
 - `workers/src/agent/operations.test.ts` — registry shape
 
-The DO tick loop, WebSocket fanout, and end-to-end Supabase/Postgres paths are
-not unit-tested; those are exercised by running the full stack locally.
+End-to-end Supabase/Postgres + DO behaviour (real WebSocket framing,
+Hibernation, Postgres transactions) is still only exercised by running the
+full stack locally — see [README → Commands to run / test / debug](./README.md#commands-to-run--test--debug).
 
 ## Known TODOs
 
 - `useHistoricalValue` was not changed — it doesn't depend on Convex.
-- Music storage was kept as a Supabase Storage URL column; no upload UI yet.

@@ -6,24 +6,16 @@
 //
 // Each world is addressed by a DO id derived from `worldId` (UUID), so all
 // requests for the same world land on the same single-threaded actor.
+//
+// The non-trivial logic (one alarm cycle, one client message, snapshot
+// fanout) lives in `./tick.ts` so it can be unit-tested without standing up
+// a real DurableObjectState.
 
 import type { Env } from '../env';
 import { adminDb, DB } from '../../../shared/db/supabase';
 import * as repo from '../../../shared/db/repository';
 import { Game } from '../../../shared/aiWorld/game';
-import { applyEngineUpdate } from '../../../shared/engine/abstractGame';
-import { saveGameDiff } from '../../../shared/db/repository';
-import { ENGINE_ACTION_DURATION, STEP_INTERVAL } from '../../../shared/aiWorld/constants';
-
-type ClientMessage =
-  | { type: 'subscribe' }
-  | { type: 'sendInput'; name: string; args: any; correlationId?: string };
-
-type ServerMessage =
-  | { type: 'snapshot'; engine: any; world: any }
-  | { type: 'inputAccepted'; correlationId: string; inputId: string }
-  | { type: 'inputResult'; inputId: string; result: any }
-  | { type: 'error'; message: string };
+import { ClientMessage, handleClientMessage, runAlarmCycle } from './tick';
 
 export class WorldDO implements DurableObject {
   private worldId: string | null = null;
@@ -73,7 +65,10 @@ export class WorldDO implements DurableObject {
 
     if (url.pathname.endsWith('/snapshot') && request.method === 'GET') {
       await this.ensureGame();
-      return Response.json(this.snapshot());
+      return Response.json({
+        engine: this.game!.engine,
+        world: this.game!.world.serialize(),
+      });
     }
 
     return new Response('Not found', { status: 404 });
@@ -88,27 +83,18 @@ export class WorldDO implements DurableObject {
       return;
     }
     try {
-      if (parsed.type === 'subscribe') {
-        await this.ensureGame();
-        ws.send(JSON.stringify(this.snapshotMessage()));
-        await this.ensureAlarm();
-      } else if (parsed.type === 'sendInput') {
-        await this.ensureGame();
-        const inputId = await repo.insertInput(
-          this.db,
-          this.game!.engine.id,
-          parsed.name,
-          parsed.args,
-        );
-        if (parsed.correlationId) {
-          ws.send(
-            JSON.stringify({ type: 'inputAccepted', correlationId: parsed.correlationId, inputId }),
-          );
-        }
-        await this.ensureAlarm();
-      }
+      await this.ensureGame();
+      await handleClientMessage(
+        {
+          db: this.db,
+          game: this.game!,
+          socket: ws,
+          ensureAlarm: () => this.ensureAlarm(),
+        },
+        parsed,
+      );
     } catch (e: any) {
-      ws.send(JSON.stringify({ type: 'error', message: e.message } satisfies ServerMessage));
+      ws.send(JSON.stringify({ type: 'error', message: e.message }));
     }
   }
 
@@ -123,25 +109,15 @@ export class WorldDO implements DurableObject {
   async alarm() {
     try {
       await this.ensureGame();
-      const now = Date.now();
-      const { update, diff } = await this.game!.runStep(this.db, now);
-      await applyEngineUpdate(this.db, this.game!.engine.id, update);
-      await saveGameDiff(this.db, this.worldId!, diff);
-      this.broadcastSnapshot();
-
-      // Dispatch agent operations (LLM calls). We fire-and-forget — the
-      // operations call back via `sendInput` when complete.
-      for (const op of diff.agentOperations) {
-        this.dispatchAgentOperation(op.name, op.args).catch((e) =>
-          console.error(`Agent operation ${op.name} failed:`, e),
-        );
-      }
-
-      // Reschedule if the world is still running and there's work to do.
-      const status = await repo.getWorldStatus(this.db, this.worldId!);
-      if (status?.status === 'running') {
-        await this.state.storage.setAlarm(Date.now() + STEP_INTERVAL);
-      }
+      await runAlarmCycle({
+        db: this.db,
+        game: this.game!,
+        worldId: this.worldId!,
+        now: Date.now(),
+        sockets: this.state.getWebSockets(),
+        setAlarm: (when) => this.state.storage.setAlarm(when),
+        dispatchOperation: (name, args) => this.dispatchAgentOperation(name, args),
+      });
     } catch (e) {
       console.error('Alarm failed:', e);
       // Retry shortly so a transient error doesn't stall the world.
@@ -160,36 +136,10 @@ export class WorldDO implements DurableObject {
     if (!existing) await this.state.storage.setAlarm(Date.now() + 50);
   }
 
-  private snapshot() {
-    return {
-      engine: this.game!.engine,
-      world: this.game!.world.serialize(),
-    };
-  }
-
-  private snapshotMessage(): ServerMessage {
-    return { type: 'snapshot', engine: this.game!.engine, world: this.game!.world.serialize() };
-  }
-
-  private broadcastSnapshot() {
-    if (!this.game) return;
-    const msg = JSON.stringify(this.snapshotMessage());
-    for (const ws of this.state.getWebSockets()) {
-      try {
-        ws.send(msg);
-      } catch {
-        // Sockets that have errored are GC'd by the runtime.
-      }
-    }
-  }
-
   // Dispatches an agent operation by calling the Worker's internal operation
   // endpoint. The Worker has more time/CPU than a single Alarm tick and can
   // safely talk to slow LLMs.
-  private async dispatchAgentOperation(name: string, args: any) {
-    // The Worker exposes itself to the DO via the `service` binding; for
-    // simplicity here we use the public URL via env (set OPERATIONS_URL).
-    // In a real deploy you'd bind a Service Worker so this is in-process.
+  private async dispatchAgentOperation(name: string, args: unknown) {
     if (!(this.env as any).OPERATIONS_URL) {
       console.warn('OPERATIONS_URL not set; agent operations disabled');
       return;
@@ -200,4 +150,5 @@ export class WorldDO implements DurableObject {
       body: JSON.stringify({ worldId: this.worldId, name, args }),
     });
   }
+
 }

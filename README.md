@@ -2,9 +2,8 @@
 
 > **Stack note:** AI World was originally built on Convex. This fork has been
 > migrated to **Supabase Postgres + Cloudflare Workers / Durable Objects**.
-> See [`MIGRATION.md`](./MIGRATION.md) for the current setup. The Convex-flavored
-> instructions below in this README are kept for historical reference only and
-> no longer apply to running the project.
+> See [`MIGRATION.md`](./MIGRATION.md) for an architectural overview.
+> The setup steps below describe the new stack.
 
 [Join our community Discord: AI Stack Devs](https://discord.gg/PQUmTBTGmT)
 
@@ -26,23 +25,29 @@ above) are written in Python.
 ## Overview
 
 - 💻 [Stack](#stack)
-- 🧠 [Installation](#installation) (cloud, local, Docker, self-host, Fly.io, ...)
+- 🧠 [Installation](#installation)
 - 💻️ [Windows Pre-requisites](#windows-installation)
-- 🤖 [Configure your LLM of choice](#connect-an-llm) (Ollama, OpenAI, Together.ai, ...)
+- 🤖 [Configure your LLM of choice](#connect-an-llm)
 - 👤 [Customize - YOUR OWN simulated world](#customize-your-own-simulation)
 - 👩‍💻 [Deploying to production](#deploy-the-app-to-production)
 - 🐛 [Troubleshooting](#troubleshooting)
 
 ## Stack
 
-- Game engine, database, and vector search: [Convex](https://convex.dev/)
-- Auth (Optional): [Clerk](https://clerk.com/)
-- Default chat model is `llama3` and embeddings with `mxbai-embed-large`.
-- Local inference: [Ollama](https://github.com/jmorganca/ollama)
-- Configurable for other cloud LLMs: [Together.ai](https://together.ai/) or anything that speaks the
-  [OpenAI API](https://platform.openai.com/). PRs welcome to add more cloud provider support.
-- Background Music Generation: [Replicate](https://replicate.com/) using
-  [MusicGen](https://huggingface.co/spaces/facebook/MusicGen)
+- Frontend: [Next.js 16](https://nextjs.org/) with [shadcn/ui](https://ui.shadcn.com/) and
+  [PixiJS](https://pixijs.com/) for the rendered map.
+- Auth: [NextAuth](https://authjs.dev/) (GitHub provider, plus a guest credential).
+- Database, vector search, file storage, realtime: [Supabase](https://supabase.com/) (Postgres
+  + pgvector + Storage + Realtime).
+- Game engine + WebSocket fanout: [Cloudflare Workers](https://workers.cloudflare.com/) +
+  [Durable Objects](https://developers.cloudflare.com/durable-objects/) (one DO per world; the
+  DO Alarm drives the tick loop).
+- LLM clients: [OpenAI](https://platform.openai.com/), [OpenRouter](https://openrouter.ai/),
+  [Together.ai](https://www.together.ai/), [Ollama](https://ollama.com/), or any OpenAI-compatible
+  endpoint.
+- Background music (optional): [Replicate](https://replicate.com/)
+  [MusicGen](https://huggingface.co/spaces/facebook/MusicGen). Tracks are uploaded into the
+  `music` Supabase Storage bucket and surfaced through the in-game upload UI.
 
 Other credits:
 
@@ -61,217 +66,183 @@ Other credits:
 
 # Installation
 
-The overall steps are:
+The new stack has three moving pieces:
 
-1. [Build and deploy](#build-and-deploy)
-2. [Connect it to an LLM](#connect-an-llm)
+1. **Supabase** — Postgres + pgvector + Storage + Realtime.
+2. **Cloudflare Worker (with a Durable Object)** — runs the game tick loop and the LLM
+   operations, serves a WebSocket to the browser.
+3. **Next.js frontend** — talks to Supabase over the public anon key for reads, and to the
+   Worker over WebSocket / HTTP for writes.
 
-## Build and Deploy
+You'll set them up in that order. See
+[`MIGRATION.md`](./MIGRATION.md) for the full architecture and a hook-by-hook map of what
+replaced each `convex/` module.
 
-There are a few ways to run the app on top of Convex (the backend).
+If you're on Windows, jump to [Windows Installation](#windows-installation) first.
 
-1. The standard Convex setup, where you develop locally or in the cloud. This requires a Convex
-   account(free). This is the easiest way to depoy it to the cloud and seriously develop.
-2. If you want to try it out without an account and you're okay with Docker, the Docker Compose
-   setup is nice and self-contained.
-3. There's a community fork of this project offering a one-click install on
-   [Pinokio](https://pinokio.computer/item?uri=https://github.com/cocktailpeanutlabs/aitown) for
-   anyone interested in running but not modifying it 😎.
-4. You can also deploy it to [Fly.io](https://fly.io/). See [./fly](./fly) for instructions.
+## 1. Supabase
 
-### Standard Setup
-
-Note, if you're on Windows, see [below](#windows-installation).
+Install the [Supabase CLI](https://supabase.com/docs/guides/cli) and start a local stack:
 
 ```sh
-git clone https://github.com/a16z-infra/ai-town.git
-cd ai-world
+supabase start
+supabase db reset    # applies supabase/migrations/00000000000001_init.sql
+```
+
+`supabase status` prints the local API URL, the **anon key** (public, browser-safe), and the
+**service_role key** (server-only — never ship to the browser). Note all three.
+
+For the music upload UI to work, create a public Storage bucket called `music`:
+
+```sh
+supabase storage create music --public
+```
+
+(Or do it from the Studio UI at http://127.0.0.1:54323 → Storage → New bucket.)
+
+To deploy against a hosted Supabase project instead, run `supabase link --project-ref <ref>` and
+then `supabase db push`.
+
+## 2. Cloudflare Worker + Durable Object
+
+```sh
+cd workers
 npm install
+
+# Talking to Supabase from the Worker:
+npx wrangler secret put SUPABASE_URL              # paste from `supabase status`
+npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY # paste from `supabase status`
+
+# Pick exactly one LLM provider:
+npx wrangler secret put OLLAMA_HOST               # http://host.docker.internal:11434
+# or:
+npx wrangler secret put OPENAI_API_KEY            # sk-…
+# or OPENROUTER_API_KEY / TOGETHER_API_KEY / LLM_API_URL+LLM_API_KEY for a custom endpoint.
+
+# Required so the DO can call back into the Worker for LLM ops:
+echo 'OPERATIONS_URL = "http://127.0.0.1:8787/agentOperations"' >> wrangler.toml
+
+npm run dev                                       # http://127.0.0.1:8787
 ```
 
-This will require logging into your Convex account, if you haven't already.
+For production, run `npm run deploy` from the same directory. Wrangler will print the public
+worker URL (e.g. `https://ai-world.<account>.workers.dev`) — that's what `NEXT_PUBLIC_WORKER_URL`
+should point at.
 
-To run it:
+## 3. Seed the world
+
+In a third terminal, with Supabase + Worker still running:
 
 ```sh
-npm run dev
+SUPABASE_URL=…  SUPABASE_SERVICE_ROLE_KEY=…  WORKER_URL=http://127.0.0.1:8787  npm run seed
 ```
 
-You can now visit http://localhost:5173.
+This creates the engine row, the world row, the `world_status` row, the map, and queues a
+`createAgent` input for every entry in `data/characters.ts → Descriptions`. The DO picks the
+inputs up on its next tick and creates the agents.
 
-If you'd rather run the frontend and backend separately (which syncs your backend functions as
-they're saved), you can run these in two terminals:
-
-```bash
-npm run dev:frontend
-npm run dev:backend
-```
-
-See [package.json](./package.json) for details.
-
-### Using Docker Compose with self-hosted Convex
-
-You can also run the Convex backend with the self-hosted Docker container. Here we'll set it up to
-run the frontend, backend, and dashboard all via docker compose.
+## 4. Frontend
 
 ```sh
-docker compose up --build -d
+cp .env.example .env.local
+# Fill in NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, NEXT_PUBLIC_WORKER_URL,
+# AUTH_SECRET, and (optional) GitHub OAuth credentials.
+npm install
+npm run dev          # http://localhost:3000
 ```
 
-The container will keep running in the background if you pass `-d`. After you've done it once, you
-can `stop` and `start` services.
-
-- The frontend will be running on http://localhost:5173.
-- The backend will be running on http://localhost:3210 (3211 for the http api).
-- The dashboard will be running on http://localhost:6791.
-
-To log into the dashboard and deploy from the convex CLI, you will need to generate an admin key.
-
-```sh
-docker compose exec backend ./generate_admin_key.sh
-```
-
-Add it to your `.env.local` file. Note: If you run `down` and `up`, you'll have to generate the key
-again and update the `.env.local` file.
-
-```sh
-# in .env.local
-CONVEX_SELF_HOSTED_ADMIN_KEY="<admin-key>" # Ensure there are quotes around it
-CONVEX_SELF_HOSTED_URL="http://127.0.0.1:3210"
-```
-
-Then set up the Convex backend (one time):
-
-```sh
-npm run predev
-```
-
-To continuously deploy new code to the backend and print logs:
-
-```sh
-npm run dev:backend
-```
-
-To see the dashboard, visit `http://localhost:6791` and provide the admin key you generated earlier.
-
-### Configuring Docker for Ollama
-
-If you'll be using Ollama for local inference, you'll need to configure Docker to connect to it.
-
-```sh
-npx convex env set OLLAMA_HOST http://host.docker.internal:11434
-```
-
-To test the connection (after you [have it running](#ollama-default)):
-
-```sh
-docker compose exec backend /bin/bash curl http://host.docker.internal:11434
-```
-
-If it says "Ollama is running", it's good! Otherwise, check out the
-[Troubleshooting](#troubleshooting) section.
+Open http://localhost:3000. You should see the safari, the agents wandering after a few ticks,
+and chat history when you click on any animal.
 
 ## Connect an LLM
 
-Note: If you want to run the backend in the cloud, you can either use a cloud-based LLM API, like
-OpenAI or Together.ai or you can proxy the traffic from the cloud to your local Ollama. See
-[below](#using-local-inference-from-a-cloud-deployment) for instructions.
+The Worker reads the LLM provider from its bound env vars (set with `wrangler secret put`).
+You can force a specific provider with `LLM_PROVIDER`; otherwise the first provider whose API
+key is set wins. See `shared/util/llm.ts` for the resolution order.
 
-### Ollama (default)
+### Ollama (default for local dev)
 
-By default, the app tries to use Ollama to run it entirely locally.
+By default the Worker will try Ollama at `http://127.0.0.1:11434`.
 
 1. Download and install [Ollama](https://ollama.com/).
-2. Open the app or run `ollama serve` in a terminal. `ollama serve` will warn you if the app is
-   already running.
-3. Run `ollama pull llama3` to have it download `llama3`.
-4. Test it out with `ollama run llama3`.
+2. Open the app, or run `ollama serve` in a terminal.
+3. `ollama pull llama3` (chat) and `ollama pull mxbai-embed-large` (embeddings — 1024-dim).
+4. Test it: `ollama run llama3`.
 
-Ollama model options can be found [here](https://ollama.ai/library).
-
-If you want to customize which model to use, adjust convex/util/llm.ts or set
-`npx convex env set OLLAMA_MODEL # model`. If you want to edit the embedding model:
-
-1. Change the `OLLAMA_EMBEDDING_DIMENSION` in `convex/util/llm.ts` and ensure:
-   `export const EMBEDDING_DIMENSION = OLLAMA_EMBEDDING_DIMENSION;`
-2. Set `npx convex env set OLLAMA_EMBEDDING_MODEL # model`.
-
-Note: You might want to set `NUM_MEMORIES_TO_SEARCH` to `1` in constants.ts, to reduce the size of
-conversation prompts, if you see slowness.
+If you change the embedding model, update `EMBEDDING_DIMENSION` in `shared/util/llm.ts` **and**
+the `vector(1024)` columns in `supabase/migrations/00000000000001_init.sql`. Then re-run
+`supabase db reset` to drop the old embeddings table.
 
 ### OpenAI
 
-To use OpenAI, you need to:
-
-```ts
-// In convex/util/llm.ts change the following line:
-export const EMBEDDING_DIMENSION = OPENAI_EMBEDDING_DIMENSION;
+```sh
+cd workers
+npx wrangler secret put OPENAI_API_KEY        # sk-…
+# Optional overrides:
+npx wrangler secret put OPENAI_CHAT_MODEL     # default: gpt-4o-mini
+npx wrangler secret put OPENAI_EMBEDDING_MODEL # default: text-embedding-ada-002
 ```
 
-Set the `OPENAI_API_KEY` environment variable. Visit https://platform.openai.com/account/api-keys if
-you don't have one.
+OpenAI's default embedding is 1536-dim. Edit `EMBEDDING_DIMENSION` in `shared/util/llm.ts` to
+match, and update the `vector(...)` columns in the migration accordingly.
+
+### OpenRouter
 
 ```sh
-npx convex env set OPENAI_API_KEY 'your-key'
+cd workers
+npx wrangler secret put OPENROUTER_API_KEY    # sk-or-…
+npx wrangler secret put LLM_PROVIDER          # openrouter
+# Optional:
+npx wrangler secret put OPENROUTER_CHAT_MODEL # default: deepseek/deepseek-v4-flash
 ```
 
-Optional: choose models with `OPENAI_CHAT_MODEL` and `OPENAI_EMBEDDING_MODEL`.
+OpenRouter does not host embeddings. Either set `OPENROUTER_EMBEDDING_MODEL` to an
+OpenAI-compatible model the gateway will proxy, or run Ollama for embeddings only.
 
 ### Together.ai
 
-To use Together.ai, you need to:
-
-```ts
-// In convex/util/llm.ts change the following line:
-export const EMBEDDING_DIMENSION = TOGETHER_EMBEDDING_DIMENSION;
-```
-
-Set the `TOGETHER_API_KEY` environment variable. Visit https://api.together.xyz/settings/api-keys if
-you don't have one.
-
 ```sh
-npx convex env set TOGETHER_API_KEY 'your-key'
+cd workers
+npx wrangler secret put TOGETHER_API_KEY      # paste from together.ai/settings/api-keys
+# Optional:
+npx wrangler secret put TOGETHER_CHAT_MODEL
+npx wrangler secret put TOGETHER_EMBEDDING_MODEL
 ```
 
-Optional: choose models via `TOGETHER_CHAT_MODEL`, `TOGETHER_EMBEDDING_MODEL`. The embedding model's
-dimension must match `EMBEDDING_DIMENSION`.
+The Together default embedding is 768-dim — adjust `EMBEDDING_DIMENSION` and the migration to
+match.
 
 ### Other OpenAI-compatible API
 
-You can use any OpenAI-compatible API, such as Anthropic, Groq, or Azure.
-
-- Change the `EMBEDDING_DIMENSION` in `convex/util/llm.ts` to match the dimension of your embedding
-  model.
-- Edit `getLLMConfig` in `llm.ts` or set environment variables:
-
 ```sh
-npx convex env set LLM_API_URL 'your-url'
-npx convex env set LLM_API_KEY 'your-key'
-npx convex env set LLM_MODEL 'your-chat-model'
-npx convex env set LLM_EMBEDDING_MODEL 'your-embedding-model'
+cd workers
+npx wrangler secret put LLM_API_URL           # e.g. https://api.groq.com/openai
+npx wrangler secret put LLM_API_KEY           # leave unset if your endpoint doesn't require one
+npx wrangler secret put LLM_MODEL             # chat model name
+npx wrangler secret put LLM_EMBEDDING_MODEL   # embedding model name
 ```
 
-Note: if `LLM_API_KEY` is not required, don't set it.
+### Note on changing the LLM provider or embedding model
 
-### Note on changing the LLM provider or embedding model:
+If you change the embedding provider/model, you must wipe the existing embeddings (the dimension
+must match across the LLM, the `EMBEDDING_DIMENSION` constant, and the Postgres `vector(N)`
+columns). The simplest reset:
 
-If you change the LLM provider or embedding model, you should delete your data and start over. The
-embeddings used for memory are based on the embedding model you choose, and the dimension of the
-vector database must match the embedding model's dimension. See
-[below](#wiping-the-database-and-starting-over) for how to do that.
+```sh
+supabase db reset                # drops + reapplies migrations (clears all data)
+npm run seed                     # re-creates default world + agents
+```
 
 ## Customize your own simulation
 
-NOTE: every time you change character data, you should re-run `npx convex run testing:wipeAllTables`
-and then `npm run dev` to re-upload everything to Convex. This is because character data is sent to
-Convex on the initial load. However, beware that `npx convex run testing:wipeAllTables` WILL wipe
-all of your data.
+> Whenever you change character data, re-seed (`supabase db reset` then `npm run seed`) so the
+> Postgres `agent_descriptions` rows reflect the new identities/plans.
 
-1. Create your own characters and stories: All characters and stories, as well as their spritesheet
-   references are stored in [characters.ts](./data/characters.ts). You can start by changing
-   character descriptions.
+1. **Characters and stories.** All characters and stories — plus their spritesheet references —
+   live in [`data/characters.ts`](./data/characters.ts). The default list is the 12 zodiac
+   animals; replace them with whatever you want.
 
-2. Updating spritesheets: in `data/characters.ts`, you will see this code:
+2. **Spritesheets.** In `data/characters.ts`:
 
    ```ts
    export const characters = [
@@ -285,90 +256,88 @@ all of your data.
    ];
    ```
 
-   You should find a sprite sheet for your character, and define sprite motion / assets in the
-   corresponding file (in the above example, `f1SpritesheetData` was defined in f1.ts)
+   Find a sprite sheet for your character and define its motion / animations in the
+   corresponding `*SpritesheetData` constant.
 
-3. Update the Background (Environment): The map gets loaded in `convex/init.ts` from
-   `data/gentle.js`. To update the map, follow these steps:
+3. **Background map.** The map is loaded from `data/gentle.js` and inserted into the `maps`
+   table by `scripts/seed.ts`. To replace it:
 
-   - Use [Tiled](https://www.mapeditor.org/) to export tilemaps as a JSON file (2 layers named
-     bgtiles and objmap)
-   - Use the `convertMap.js` script to convert the JSON to a format that the engine can use.
+   - Use [Tiled](https://www.mapeditor.org/) to export your tilemap as JSON with two layers
+     named `bgtiles` and `objmap`.
+   - Convert it with `data/convertMap.js`:
 
-   ```console
-   node data/convertMap.js <mapDataPath> <assetPath> <tilesetpxw> <tilesetpxh>
-   ```
+     ```sh
+     node data/convertMap.js <mapDataPath> <assetPath> <tilesetpxw> <tilesetpxh>
+     ```
 
-   - `<mapDataPath>`: Path to the Tiled JSON file.
-   - `<assetPath>`: Path to tileset images.
-   - `<tilesetpxw>`: Tileset width in pixels.
-   - `<tilesetpxh>`: Tileset height in pixels. Generates `converted-map.js` that you can use like
-     `gentle.js`
+     - `<mapDataPath>`: path to the Tiled JSON file
+     - `<assetPath>`: path to the tileset image
+     - `<tilesetpxw>`: tileset width in pixels
+     - `<tilesetpxh>`: tileset height in pixels
 
-4. Adding background music with Replicate (Optional)
+     This generates `converted-map.js`, which you can drop in next to `gentle.js` and import
+     from `scripts/seed.ts`.
 
-   For Daily background music generation, create a [Replicate](https://replicate.com/) account and
-   create a token in your Profile's [API Token page](https://replicate.com/account/api-tokens).
-   `npx convex env set REPLICATE_API_TOKEN # token`
+4. **Background music (optional).** AI World ships with an in-game upload UI: log in, click the
+   small `+` next to the **Music** button, and pick an audio file. The browser uploads it into
+   the `music` Supabase Storage bucket (created above) and inserts a row into `public.music`.
+   The frontend always plays the most recent `kind = 'background'` track.
 
-   This only works if you can receive the webhook from Replicate. If it's running in the normal
-   Convex cloud, it will work by default. If you're self-hosting, you'll need to configure it to hit
-   your app's url on `/http`. If you're using Docker Compose, it will be `http://localhost:3211`,
-   but you'll need to proxy the traffic to your local machine.
-
-   **Note**: The simulation will pause after 5 minutes if the window is idle. Loading the page will
-   unpause it. You can also manually freeze & unfreeze the world with a button in the UI. If you
-   want to run the world without the browser, you can comment-out the "stop inactive worlds" cron in
-   `convex/crons.ts`.
-
-   - Change the background music by modifying the prompt in `convex/music.ts`
-   - Change how often to generate new music at `convex/crons.ts` by modifying the
-     `generate new background music` job
+   To plug in [Replicate MusicGen](https://replicate.com/) for periodic generation, hit
+   Replicate from a small cron worker (or a GitHub Action) and POST the resulting public URL
+   into `public.music` with `kind = 'background'` — the frontend will pick it up
+   automatically. The legacy Convex cron + webhook integration was removed in this fork.
 
 ## Commands to run / test / debug
 
-**To stop the back end, in case of too much activity**
+The Convex `npx convex run testing:*` helpers were replaced by Worker HTTP routes. Set
+`WORKER_URL=http://127.0.0.1:8787` (or your deployed URL) and run `curl` against them. Replace
+`<world-id>` with the value `npm run seed` printed (or query
+`select world_id from world_status where is_default;` from `supabase db psql`).
 
-This will stop running the engine and agents. You can still run queries and run functions to debug.
+**Pause the simulation** (`testing:stop`):
 
-```bash
-npx convex run testing:stop
+```sh
+curl -X POST $WORKER_URL/world/<world-id>/freeze
 ```
 
-**To restart the back end after stopping it**
+The DO stops scheduling alarms; the row in `world_status` flips to `stoppedByDeveloper`.
 
-```bash
-npx convex run testing:resume
+**Resume it** (`testing:resume`):
+
+```sh
+curl -X POST $WORKER_URL/world/<world-id>/resume
 ```
 
-**To kick the engine in case the game engine or agents aren't running**
+Flips the row back to `running` and kicks the DO so it resumes its tick loop.
 
-```bash
-npx convex run testing:kick
+**Kick the engine** (`testing:kick`):
+
+```sh
+curl -X POST $WORKER_URL/world/<world-id>/start
 ```
 
-**To archive the world**
+Loads the world into the DO if it had hibernated and arms the alarm.
 
-If you'd like to reset the world and start from scratch, you can archive the current world:
+**Wipe the world and start fresh** (`testing:wipeAllTables` + `init`):
 
-```bash
-npx convex run testing:archive
+```sh
+supabase db reset      # drops + reapplies the schema
+npm run seed           # re-creates the default world and agents
 ```
 
-Then, you can still look at the world's data in the dashboard, but the engine and agents will no
-longer run.
+**Inspect data.** Browse Postgres via `supabase db psql`, the local Studio at
+http://127.0.0.1:54323, or the dashboard for hosted projects.
 
-You can then create a fresh world with `init`.
+**Run the unit test suite.**
 
-```bash
-npx convex run init
+```sh
+npm test
 ```
 
-**To pause your backend deployment**
-
-You can go to the [dashboard](https://dashboard.convex.dev) to your deployment settings to pause and
-un-pause your deployment. This will stop all functions, whether invoked from the client, scheduled,
-or as a cron job. See this as a last resort, as there are gentler ways of stopping above.
+The repository covers the engine, the data classes, the LLM client, the DB repository, the
+DO tick loop, and the WebSocket fanout. The end-to-end Supabase + DO integration is exercised
+by running the full stack locally — see the gap notes at the bottom of `MIGRATION.md`.
 
 ## Windows Installation
 
@@ -395,320 +364,196 @@ Steps:
 
 3. Install NVM and Node.js
 
-   NVM (Node Version Manager) helps manage multiple versions of Node.js. Install NVM and Node.js 18
-   (the stable version):
+   NVM (Node Version Manager) helps manage multiple versions of Node.js. Install NVM and Node.js
+   20 (the version `wrangler` and `next@16` are tested against):
 
    ```sh
    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.2/install.sh | bash
    export NVM_DIR="$([ -z "${XDG_CONFIG_HOME-}" ] && printf %s "${HOME}/.nvm" || printf %s "${XDG_CONFIG_HOME}/nvm")"
    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
    source ~/.bashrc
-   nvm install 18
-   nvm use 18
+   nvm install 20
+   nvm use 20
    ```
 
 4. Install Python and Pip
 
-   Python is required for some dependencies. Install Python and Pip:
+   Python is needed by some transitive dependencies:
 
    ```sh
-   sudo apt-get install python3 python3-pip sudo ln -s /usr/bin/python3 /usr/bin/python
+   sudo apt-get install python3 python3-pip
+   sudo ln -s /usr/bin/python3 /usr/bin/python
    ```
 
-At this point, you can follow the instructions [above](#installation).
+At this point, follow the steps under [Installation](#installation).
 
 ## Deploy the app to production
 
-### Deploy Convex functions to prod environment
+### 1. Hosted Supabase
 
-Before you can run the app, you will need to make sure the Convex functions are deployed to its
-production environment. Note: this is assuming you're using the default Convex cloud product.
-
-1. Run `npx convex deploy` to deploy the convex functions to production
-2. Run `npx convex run init --prod`
-
-To transfer your local data to the cloud, you can run `npx convex export` and then import it with
-`npx convex import --prod`.
-
-If you have existing data you want to clear, you can run
-`npx convex run testing:wipeAllTables --prod`
-
-### Adding Auth (Optional)
-
-You can add clerk auth back in with `git revert b44a436`. Or just look at that diff for what changed
-to remove it.
-
-**Make a Clerk account**
-
-- Go to https://dashboard.clerk.com/ and click on "Add Application"
-- Name your application and select the sign-in providers you would like to offer users
-- Create Application
-- Add `VITE_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` to `.env.local`
-
-```bash
-VITE_CLERK_PUBLISHABLE_KEY=pk_***
-CLERK_SECRET_KEY=sk_***
-```
-
-- Go to JWT Templates and create a new Convex Template.
-- Copy the JWKS endpoint URL for use below.
+Create a project at https://supabase.com/dashboard, then:
 
 ```sh
-npx convex env set CLERK_ISSUER_URL # e.g. https://your-issuer-url.clerk.accounts.dev/
+supabase link --project-ref <ref>
+supabase db push
+supabase storage create music --public      # for the music upload UI
 ```
+
+Grab the **anon key** and **service_role key** from the project Settings → API.
+
+### 2. Cloudflare Worker
+
+Log in once with `npx wrangler login`, then:
+
+```sh
+cd workers
+# Set production secrets (uses your default wrangler env):
+npx wrangler secret put SUPABASE_URL
+npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+# …plus your chosen LLM provider's keys, as in the local dev section.
+
+# Set OPERATIONS_URL to the deployed worker URL once you have it (or skip and
+# disable agent ops by leaving it unset). It must point back at this same Worker.
+# Example: ai-world.<your-account>.workers.dev/agentOperations.
+
+npm run deploy
+```
+
+Wrangler prints the public URL — use it as `NEXT_PUBLIC_WORKER_URL` for the frontend.
+
+### 3. Seed the production world
+
+From any machine with the service-role key:
+
+```sh
+SUPABASE_URL=https://<ref>.supabase.co \
+SUPABASE_SERVICE_ROLE_KEY=… \
+WORKER_URL=https://ai-world.<account>.workers.dev \
+  npm run seed
+```
+
+### Adding GitHub auth
+
+NextAuth's GitHub provider is preconfigured in [`auth.ts`](./auth.ts). Create an OAuth app at
+https://github.com/settings/developers (callback URL: `https://<your-app>/api/auth/callback/github`)
+and set in your deployment environment:
+
+```bash
+AUTH_SECRET=<random 32+ chars>
+GITHUB_ID=<oauth client id>
+GITHUB_SECRET=<oauth client secret>
+```
+
+Without these, only the guest credential provider is available.
 
 ### Deploy the frontend to Vercel
 
 - Register an account on Vercel and then [install the Vercel CLI](https://vercel.com/docs/cli).
-- **If you are using Github Codespaces**: You will need to
-  [install the Vercel CLI](https://vercel.com/docs/cli) and authenticate from your codespaces cli by
-  running `vercel login`.
-- Deploy the app to Vercel with `vercel --prod`.
+- **If you are using GitHub Codespaces:** install the Vercel CLI in your codespace and
+  authenticate with `vercel login`.
+- Deploy with `vercel --prod`. Set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
+  `NEXT_PUBLIC_WORKER_URL`, `AUTH_SECRET`, `GITHUB_ID`, and `GITHUB_SECRET` in the Vercel
+  project settings (Environment Variables).
 
-## Using local inference from a cloud deployment
+## Using local inference from a deployed Worker
 
-We support using [Ollama](https://github.com/jmorganca/ollama) for conversation generations. To have
-it accessible from the web, you can use Tunnelmole or Ngrok or similar so the cloud backend can send
-requests to Ollama running on your local machine.
+You can keep using [Ollama](https://github.com/jmorganca/ollama) for conversations and proxy
+the traffic from the deployed Cloudflare Worker to your local machine via Tunnelmole or Ngrok.
 
 Steps:
 
-1. Set up either Tunnelmole or Ngrok.
-2. Add Ollama endpoint to Convex
+1. Set up either Tunnelmole or Ngrok (instructions below).
+2. Point the Worker at the tunnelled URL:
    ```sh
-   npx convex env set OLLAMA_HOST # your tunnelmole/ngrok unique url from the previous step
+   cd workers
+   npx wrangler secret put OLLAMA_HOST       # paste your tunnelmole/ngrok URL
    ```
-3. Update Ollama domains Ollama has a list of accepted domains. Add the ngrok domain so it won't
-   reject traffic. see [ollama.ai](https://ollama.ai) for more details.
+3. Add the tunnel domain to Ollama's allowlist (`OLLAMA_ORIGINS`). See
+   [ollama.ai](https://ollama.ai) for details.
 
 ### Using Tunnelmole
 
 [Tunnelmole](https://github.com/robbie-cahill/tunnelmole-client) is an open source tunneling tool.
-
-You can install Tunnelmole using one of the following options:
+Install it:
 
 - NPM: `npm install -g tunnelmole`
 - Linux: `curl -s https://tunnelmole.com/sh/install-linux.sh | sudo bash`
 - Mac:
   `curl -s https://tunnelmole.com/sh/install-mac.sh --output install-mac.sh && sudo bash install-mac.sh`
-- Windows: Install with NPM, or if you don't have NodeJS installed, download the `exe` file for
-  Windows [here](https://tunnelmole.com/downloads/tmole.exe) and put it somewhere in your PATH.
+- Windows: install via NPM, or grab the
+  [`tmole.exe`](https://tunnelmole.com/downloads/tmole.exe).
 
-Once Tunnelmole is installed, run the following command:
+Then run:
 
 ```
 tmole 11434
 ```
 
-Tunnelmole should output a unique url once you run this command.
+Tunnelmole prints a unique URL. Use it as `OLLAMA_HOST`.
 
 ### Using Ngrok
 
-Ngrok is a popular closed source tunneling tool.
+Ngrok is a popular closed-source tunneling tool.
 
-- [Install Ngrok](https://ngrok.com/docs/getting-started/)
+- [Install Ngrok](https://ngrok.com/docs/getting-started/).
 
-Once ngrok is installed and authenticated, run the following command:
+Once Ngrok is installed and authenticated, run:
 
 ```
 ngrok http http://localhost:11434
 ```
 
-Ngrok should output a unique url once you run this command.
+Use the printed URL as `OLLAMA_HOST`.
 
 ## Troubleshooting
 
 ### Wiping the database and starting over
 
-You can wipe the database by running:
-
 ```sh
-npx convex run testing:wipeAllTables
+supabase db reset      # drops + reapplies migrations
+npm run seed
 ```
 
-Then reset with:
+### Frontend can't reach the Worker
 
-```sh
-npx convex run init
-```
+- Confirm `NEXT_PUBLIC_WORKER_URL` is set in `.env.local` and matches what
+  `wrangler dev` printed.
+- Hit `curl $NEXT_PUBLIC_WORKER_URL/health` — it should return `{"ok":true}`.
+- WebSocket failures usually mean CORS or a mismatched URL — the Worker's CORS allows `*`
+  by default; check your browser's network tab for the upgrade request.
 
-### Incompatible Node.js versions
+### Worker can't reach Supabase
 
-If you encounter a node version error on the convex server upon application startup, please use node
-version 18, which is the most stable. One way to do this is by
-[installing nvm](https://nodejs.org/en/download/package-manager) and running `nvm install 18` and
-`nvm use 18`.
+- Run `npx wrangler tail` from `workers/` to see live logs.
+- Make sure you used the **service_role** key (not the anon key) for the Worker secret — RLS
+  blocks most writes for anon users.
 
 ### Reaching Ollama
 
-If you're having trouble with the backend communicating with Ollama, it depends on your setup how to
-debug:
+- **Direct (Worker → host):** the Worker is sandboxed and **cannot** reach `localhost`. Use
+  Tunnelmole/Ngrok as in the previous section, or run Ollama on a publicly-reachable host.
+- **Direct (Next.js dev server → host):** the Next.js side never talks to Ollama; everything
+  routes through the Worker.
 
-1. If you're running directly on Windows, see
-   [Windows Ollama connection issues](#windows-ollama-connection-issues).
-2. If you're using **Docker**, see
-   [Docker to Ollama connection issues](#docker-to-ollama-connection-issues).
-3. If you're running locally, you can try the following:
+If you're running everything inside Docker / WSL, the same `socat`-based bridge from
+upstream still works:
 
 ```sh
-npx convex env set OLLAMA_HOST http://localhost:11434
+sudo apt install unzip socat
+socat TCP-LISTEN:11434,fork TCP:$(cat /etc/resolv.conf | grep nameserver | awk '{print $2}'):11434 &
+curl http://127.0.0.1:11434      # should respond "Ollama is running"
 ```
 
-By default, the host is set to `http://127.0.0.1:11434`. Some systems prefer `localhost`
-¯\_(ツ)\_/¯.
+### Music upload fails
 
-### Windows Ollama connection issues
-
-If the above didn't work after following the [windows](#windows-installation) and regular
-[installation](#installation) instructions, you can try the following, assuming you're **not** using
-Docker.
-
-If you're using Docker, see the [next section](#docker-to-ollama-connection-issues) for Docker
-troubleshooting.
-
-For running directly on Windows, you can try the following:
-
-1. Install `unzip` and `socat`:
-
-   ```sh
-   sudo apt install unzip socat
-   ```
-
-2. Configure `socat` to Bridge Ports for Ollama
-
-   Run the following command to bridge ports:
-
-   ```sh
-   socat TCP-LISTEN:11434,fork TCP:$(cat /etc/resolv.conf | grep nameserver | awk '{print $2}'):11434 &
-   ```
-
-3. Test if it's working:
-
-   ```sh
-   curl http://127.0.0.1:11434
-   ```
-
-   If it responds OK, the Ollama API should be accessible.
-
-### Docker to Ollama connection issues
-
-If you're having trouble with the backend communicating with Ollama, there's a couple things to
-check:
-
-1. Is Docker at least verion 18.03 ? That allows you to use the `host.docker.internal` hostname to
-   connect to the host from inside the container.
-
-2. Is Ollama running? You can check this by running `curl http://localhost:11434` from outside the
-   container.
-
-3. Is Ollama accessible from inside the container? You can check this by running
-   `docker compose exec backend curl http://host.docker.internal:11434`.
-
-If 1 & 2 work, but 3 does not, you can use `socat` to bridge the traffic from inside the container
-to Ollama running on the host.
-
-1. Configure `socat` with the host's IP address (not the Docker IP).
-
-   ```sh
-   docker compose exec backend /bin/bash
-   HOST_IP=YOUR-HOST-IP
-   socat TCP-LISTEN:11434,fork TCP:$HOST_IP:11434
-   ```
-
-   Keep this running.
-
-2. Then from outside of the container:
-
-   ```sh
-   npx convex env set OLLAMA_HOST http://localhost:11434
-   ```
-
-3. Test if it's working:
-
-   ```sh
-   docker compose exec backend curl http://localhost:11434
-   ```
-
-   If it responds OK, the Ollama API is accessible. Otherwise, try changing the previous two to
-   `http://127.0.0.1:11434`.
-
-### Launching an Interactive Docker Terminal
-
-If you wan to investigate inside the container, you can launch an interactive Docker terminal, for
-the `frontend`, `backend` or `dashboard` service:
-
-```bash
-docker compose exec frontend /bin/bash
-```
-
-To exit the container, run `exit`.
+- Make sure the Storage bucket is named exactly `music` and is **public** (otherwise the anon
+  client can't read it).
+- The anon role must be allowed to insert into `public.music`. The migration ships with a
+  permissive read policy; if you want browser-side uploads to insert metadata too, add an
+  insert policy or move the upload through a small Worker route.
 
 ### Updating the browser list
 
 ```bash
-docker compose exec frontend npx update-browserslist-db@latest
+npx update-browserslist-db@latest
 ```
-
-# 🧑‍🏫 What is Convex?
-
-[Convex](https://convex.dev) is a hosted backend platform with a built-in database that lets you
-write your [database schema](https://docs.convex.dev/database/schemas) and
-[server functions](https://docs.convex.dev/functions) in
-[TypeScript](https://docs.convex.dev/typescript). Server-side database
-[queries](https://docs.convex.dev/functions/query-functions) automatically
-[cache](https://docs.convex.dev/functions/query-functions#caching--reactivity) and
-[subscribe](https://docs.convex.dev/client/react#reactivity) to data, powering a
-[realtime `useQuery` hook](https://docs.convex.dev/client/react#fetching-data) in our
-[React client](https://docs.convex.dev/client/react). There are also clients for
-[Python](https://docs.convex.dev/client/python), [Rust](https://docs.convex.dev/client/rust),
-[ReactNative](https://docs.convex.dev/client/react-native), and
-[Node](https://docs.convex.dev/client/javascript), as well as a straightforward
-[HTTP API](https://docs.convex.dev/http-api/).
-
-The database supports [NoSQL-style documents](https://docs.convex.dev/database/document-storage)
-with [opt-in schema validation](https://docs.convex.dev/database/schemas),
-[relationships](https://docs.convex.dev/database/document-ids) and
-[custom indexes](https://docs.convex.dev/database/indexes/) (including on fields in nested objects).
-
-The [`query`](https://docs.convex.dev/functions/query-functions) and
-[`mutation`](https://docs.convex.dev/functions/mutation-functions) server functions have
-transactional, low latency access to the database and leverage our
-[`v8` runtime](https://docs.convex.dev/functions/runtimes) with
-[determinism guardrails](https://docs.convex.dev/functions/runtimes#using-randomness-and-time-in-queries-and-mutations)
-to provide the strongest ACID guarantees on the market: immediate consistency, serializable
-isolation, and automatic conflict resolution via
-[optimistic multi-version concurrency control](https://docs.convex.dev/database/advanced/occ) (OCC /
-MVCC).
-
-The [`action` server functions](https://docs.convex.dev/functions/actions) have access to external
-APIs and enable other side-effects and non-determinism in either our
-[optimized `v8` runtime](https://docs.convex.dev/functions/runtimes) or a more
-[flexible `node` runtime](https://docs.convex.dev/functions/runtimes#nodejs-runtime).
-
-Functions can run in the background via
-[scheduling](https://docs.convex.dev/scheduling/scheduled-functions) and
-[cron jobs](https://docs.convex.dev/scheduling/cron-jobs).
-
-Development is cloud-first, with
-[hot reloads for server function](https://docs.convex.dev/cli#run-the-convex-dev-server) editing via
-the [CLI](https://docs.convex.dev/cli),
-[preview deployments](https://docs.convex.dev/production/hosting/preview-deployments),
-[logging and exception reporting integrations](https://docs.convex.dev/production/integrations/),
-There is a [dashboard UI](https://docs.convex.dev/dashboard) to
-[browse and edit data](https://docs.convex.dev/dashboard/deployments/data),
-[edit environment variables](https://docs.convex.dev/production/environment-variables),
-[view logs](https://docs.convex.dev/dashboard/deployments/logs),
-[run server functions](https://docs.convex.dev/dashboard/deployments/functions), and more.
-
-There are built-in features for [reactive pagination](https://docs.convex.dev/database/pagination),
-[file storage](https://docs.convex.dev/file-storage),
-[reactive text search](https://docs.convex.dev/text-search),
-[vector search](https://docs.convex.dev/vector-search),
-[https endpoints](https://docs.convex.dev/functions/http-actions) (for webhooks),
-[snapshot import/export](https://docs.convex.dev/database/import-export/),
-[streaming import/export](https://docs.convex.dev/production/integrations/streaming-import-export),
-and [runtime validation](https://docs.convex.dev/database/schemas#validators) for
-[function arguments](https://docs.convex.dev/functions/args-validation) and
-[database data](https://docs.convex.dev/database/schemas#schema-validation).
-
-Everything scales automatically, and it’s [free to start](https://www.convex.dev/plans).
