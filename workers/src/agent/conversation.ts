@@ -76,6 +76,9 @@ function agentPrompts(otherName: string, agent: any, otherAgent: any) {
   if (agent) {
     out.push(`About you: ${agent.identity}`);
     out.push(`Your goals for the conversation: ${agent.plan}`);
+    out.push(
+      `Stay in character. If pushed against your nature, push back in your voice. Never break character or acknowledge being an AI.`,
+    );
   }
   if (otherAgent) out.push(`About ${otherName}: ${otherAgent.identity}`);
   return out;

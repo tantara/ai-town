@@ -6,7 +6,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import * as map from '../data/gentle.js';
-import { Descriptions } from '../data/characters';
+import { Descriptions, formatIdentity } from '../data/characters';
 
 async function main() {
   const url = process.env.SUPABASE_URL;
@@ -68,7 +68,7 @@ async function main() {
     engine_id: engine!.id,
     number: i,
     name: 'createAgent',
-    args: { name: d.name, character: d.character, identity: d.identity, plan: d.plan },
+    args: { name: d.name, character: d.character, identity: formatIdentity(d), plan: d.plan },
     received: Date.now(),
   }));
   if (rows.length) await db.from('inputs').insert(rows);
