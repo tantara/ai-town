@@ -55,7 +55,6 @@ changed.
 | Package manager           | npm                                                   | **pnpm workspace monorepo** (root = Next.js app, `workers/` = Worker package)                         |
 | Local "all-in-one" dev    | `npm run dev` started the Convex dev server + frontend | **`pnpm dev`** runs Next.js and `wrangler dev` concurrently                                           |
 | Hosted deploy targets     | Convex cloud + Vercel                                 | **Supabase + Cloudflare + Vercel** (or any Next.js host)                                              |
-| Self-host story           | Self-hosted Convex on Fly.io                          | Self-hosted Supabase + Cloudflare Workers (with Wrangler)                                             |
 | Test harness              | Limited                                               | **Jest** suite (143 tests) covering engine, repository, LLM client, DO tick loop, lifecycle, agents   |
 
 ## Stack
