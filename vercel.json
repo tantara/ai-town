@@ -1,9 +1,3 @@
 {
-  "framework": "vite",
-  "rewrites": [
-    {
-      "source": "/ai-world/:match*",
-      "destination": "/:match*"
-    }
-  ]
+  "framework": "nextjs"
 }

@@ -1,0 +1,4 @@
+# pnpm monorepo. The repo root holds the Next.js app (`ai-world`); the
+# Cloudflare Worker + Durable Object lives in its own workspace package.
+packages:
+  - 'workers'

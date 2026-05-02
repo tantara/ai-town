@@ -20,21 +20,23 @@ AI World is split into a few layers:
   browser for human consumption.
 - The game engine in `shared/engine`: To make it easy to hack on the game rules, we've separated
   out the game engine from the AI World-specific game rules. The game engine is responsible for
-  saving and loading game state from the database, coordinating feeding inputs into the engine,
-  and actually running the game engine in Convex functions.
-- The agent in `workers/src/agent`: Agents run as part of the game loop, and can kick off asynchronous
-  Convex functions to do longer processing, such as talking to LLMs. Those functions can save state
-  in separate tables, or submit inputs to the game engine to modify game state. Internally, our
-  agents use a combination of simple rule-based systems and talking to an LLM.
+  saving and loading game state from Postgres, coordinating feeding inputs into the engine,
+  and actually running the game loop. The engine runs inside the per-world Cloudflare Durable
+  Object (one DO instance per `worldId`); the DO Alarm drives the tick cadence.
+- The agent in `workers/src/agent`: Agents run as part of the game loop, and can kick off
+  asynchronous LLM operations in the surrounding Worker. Those operations can save state in
+  separate tables, or submit inputs back to the game engine to modify game state. Internally,
+  our agents use a combination of simple rule-based systems and talking to an LLM.
 
 So, if you'd like to tweak agent behavior but keep the same game mechanics, check out `workers/src/agent`
 for the async work, and `shared/aiWorld/agent.ts` for the game loop logic.
 If you would like to add new gameplay elements (that both humans and agents can interact with), add
 the feature to `shared/aiWorld`, render it in the UI in `src/`, and respond to it in `shared/aiWorld/agent.ts`.
 
-If you have parts of your game that are more latency sensitive, you can move them out of engine
-into regular Convex tables, queries, and mutations, only logging key bits into game state. See
-"Message data model" below for an example.
+If you have parts of your game that are more latency sensitive, you can move them out of the
+engine into plain Postgres tables (read directly from the browser via `@supabase/supabase-js`,
+or pushed via Supabase Realtime), only logging key bits into game state. See "Message data
+model" below for an example.
 
 ## AI World game logic (`shared/aiWorld`)
 
@@ -57,20 +59,25 @@ AI World's data model has a few concepts:
 
 ### Schema
 
-There are three main categories of tables:
+All tables are defined in `supabase/migrations/00000000000001_init.sql` and fall into three
+categories:
 
-1. Engine tables (`shared/engine/schema.ts`) for maintaining engine-internal state.
-2. Game tables (`shared/aiWorld/schema.ts`) for game state. To keep game state small and efficient to
-   read and write, we store AI World's data model across a few tables. See `shared/aiWorld/schema.ts` for an overview.
-3. Agent tables (`workers/src/agent/schema.ts`) for agent state. Agents can freely read and write to these tables
-   within their actions.
+1. **Engine tables** (`engines`, `inputs`, `worlds`, `world_status`) for engine-internal state
+   and the single-document game snapshot. The hot-path world doc is one JSONB column on
+   `public.worlds` — the DO replaces it each step.
+2. **Game tables** (`maps`, `player_descriptions`, `agent_descriptions`, `archived_*`,
+   `participated_together`, `messages`) for the human-readable parts of game state that don't
+   need to fit in the world doc.
+3. **Agent tables** (`memories`, `memory_embeddings`, `embeddings_cache`) for agent state.
+   Agents read and write these from operations that run inside the Worker (not the DO).
 
 ### Inputs (`shared/aiWorld/inputs.ts`)
 
-AI World modifies its data model by processing inputs. Inputs are submitted by players and agents and
-processed by the game engine. We specify inputs in the `inputs` object in `shared/aiWorld/inputs.ts`.
-Use the `inputHandler` function to construct an input handler, specifying a Convex validator for
-arguments for end-to-end type-safety.
+AI World modifies its data model by processing inputs. Inputs are submitted by players and agents
+and processed by the game engine. We specify inputs in the `inputs` object in
+`shared/aiWorld/inputs.ts`. Use the `inputHandler` function to construct an input handler. Input
+arguments are validated at the Worker boundary by Zod schemas in `workers/src/index.ts` so the
+in-engine handlers can rely on already-typed payloads.
 
 - Joining (`join`) and leaving (`leave`) the game.
 - Moving a player to a particular location (`moveTo`): Movement in AI World is similar to RTS games, where
@@ -109,8 +116,9 @@ Each conversation has a typing state in the conversations table that indicates t
 is currently typing. Players can still send messages while another player is typing, but
 having the indicator helps agents (and humans) not talk over each other.
 
-The separate tables are queried and modified with regular Convex queries and mutations
-that don't directly go through the simulation.
+The browser reads `public.messages` directly via `@supabase/supabase-js` and subscribes to
+inserts via Supabase Realtime, so chat updates do not need to go through the WebSocket fanout
+that the world doc uses.
 
 ## Game engine (`shared/engine`)
 
@@ -121,17 +129,20 @@ The game engine has a few responsibilities:
 - Coordinating incoming player inputs, feeding them into the simulation, and sending their
   return values (or errors) to the client.
 - Running the simulation forward in time.
-- Saving and loading game state from the database.
-- Managing executing the game behavior, efficiently using Convex resources and minimizing input latency.
+- Saving and loading game state from Postgres (via the repository in `shared/db/repository.ts`).
+- Executing the game behavior efficiently inside the per-world Durable Object, minimizing input
+  latency.
 
 AI World's game behavior is implemented in the `Game` subclass.
 
 ### Input handling
 
-Users submit inputs through the `insertInput` function, which inserts them into an `inputs` table, assigning a
-monotonically increasing unique input number and stamping the input with the time the server received it. The
-engine then processes inputs, writing their results back to the `inputs` row. Interested clients can subscribe
-on an input's status with the `inputStatus` query.
+Users submit inputs by sending a WebSocket `sendInput` frame to the per-world Durable Object
+(`workers/src/do/world.ts`). The DO inserts a row into `public.inputs`, assigning a monotonically
+increasing input number and stamping the input with the receive time, then processes them as part
+of the next tick and writes the return value (or error) back onto the same row. Clients receive
+the result either over the WebSocket (`inputResult` frame) or by polling
+`GET /world/:id/inputs/:inputId`.
 
 `Game` provides an abstract method `handleInput` that `AiWorld` implements with its specific behavior.
 
@@ -146,14 +157,17 @@ The `Game` class specifies how it simulates time forward with the `tick` method:
   For example, AI World's `tick` method advances pathfinding with `Player.tickPathfinding`, player positions with
   `Player.tickPosition`, conversations with `Conversation.tick`, and `Agent.tick` for agent logic.
 
-To avoid running a Convex mutation 60 times per second (which would be expensive and slow), the engine batches up
-many ticks into a _step_. AI town runs steps at only 1 time per second. Here's how a step works:
+To avoid hitting Postgres 60 times per second (which would be expensive and slow), the engine
+batches many ticks into a _step_. AI World runs steps at 1 per second. Here's how a step works:
 
-1. Load the game state into memory.
+1. Load the game state into memory (only on cold start; the DO keeps the parsed `Game` instance
+   alive across steps).
 2. Decide how long to run.
-3. Execute many ticks for our time interval, alternating between feeding in inputs with `handleInput` and advancing
-   the simulation with `tick`.
-4. Write the updated game state back to the database.
+3. Execute many ticks for our time interval, alternating between feeding in inputs with
+   `handleInput` and advancing the simulation with `tick`.
+4. Write the updated game state back to Postgres in one batched diff (see `saveGameDiff` in
+   `shared/db/repository.ts`).
+5. Broadcast the new world doc to every connected WebSocket via `broadcastSnapshot`.
 
 One core invariant is that the game engine is fully "single-threaded" per world, so there are never two runs of
 an engine's step overlapping in time. Not having to think about race conditions or concurrency makes writing game
@@ -175,20 +189,20 @@ generation number does not match its expected one.
 The `World`, `Player`, `Conversation`, and `Agent` classes coordinate loading data into memory from the database,
 modifying it according to the game rules, and serializing it to write back out to the database. Here's the flow:
 
-1. The Convex scheduler calls the `shared/aiWorld/main.ts:runStep` action.
-2. The `runStep` action calls `shared/aiWorld/game.ts:loadWorld` to load the current game state. This query calls
-   `Game.load`, which loads all of a world's game state from the appropriate tables, and returns a
-   `GameState` object, which contains serialized versions of all of the players, agents, etc.
-3. The `runStep` action passes the `GameState` to the `Game` constructor, which parses the serialized versions
-   of all our game objects using their constructors. For example, `new Player(serializedPlayer)` parses the
-   database representation into the in-memory `Player` class.
-4. The engine runs the simulation, modifying the in-memory game objects.
-5. At the end of a step, the framework calls `Game.saveStep`, which computes a diff of the game state since
-   the beginning of the step and passes the diff to the `shared/aiWorld/game.ts:saveWorld` mutation.
-6. The `saveWorld` mutation applies the diff to the database, notices if any deleted objects need to be archived,
-   updates the `participatedTogether` graph, and kicks off any scheduled jobs to run.
-7. Since the engine is the only mutator of game state, it continues to run steps for some amount of time
-   without repeating steps 1 to 3 again.
+1. The Durable Object Alarm fires (see `WorldDO` in `workers/src/do/world.ts`) and calls
+   `runAlarmCycle` (`workers/src/do/tick.ts`).
+2. On the first tick after a cold start, `Game.load` reads the world doc and engine row via
+   `loadGameState` in `shared/db/repository.ts` and parses the serialized rows into `Game`,
+   `Player`, `Conversation`, `Agent`, etc. instances.
+3. The engine runs the simulation, modifying the in-memory game objects.
+4. At the end of a step, `Game.saveStep` computes a diff of the game state and `saveGameDiff`
+   applies it: replacing the world doc, archiving removed players/conversations/agents, updating
+   the `participated_together` graph, and upserting descriptions.
+5. The DO emits any agent operations to `/agentOperations` so the LLM work happens off the tick
+   loop in the surrounding Worker.
+6. Because one DO instance owns the world, it continues to run subsequent steps without
+   re-loading from Postgres. The DO is also the only writer for the world doc, so there is no
+   contention.
 
 Just as we assume that the game engine is "single threaded", we also assume that the game engine _exclusively_
 owns the tables that store game engine state. Only the game engine should programmatically modify these tables,
@@ -216,71 +230,82 @@ write it to the `worlds` document at the end of a step when computing a diff.
 
 ## Client-side game UI (`src/`)
 
-One guiding principle for AI World's architecture is to keep the usage as close to "regular Convex" usage as possible. So,
-game state is stored in regular tables, and the UI just uses regular `useQuery` hooks to load that state and render
-it in the UI.
+The browser holds two connections to the backend:
 
-The one exception is for historical tables, which feed in the latest state into a `useHistoricalValue` hook that parses
-the history buffer and replays time forward for smooth motion. To keep replayed time synchronized across multiple
-historical buffers, we provide a `useHistoricalTime` hook for the top of your app that keeps track of the current
-time and returns it for you to pass down into components.
+- A **Supabase JS client** (`src/lib/supabase.ts`) that queries `world_status`, `messages`,
+  `player_descriptions`, etc. directly with the anon key, and subscribes to inserts via
+  Supabase Realtime. RLS policies in the migration restrict the anon role to read-only access
+  on the tables the UI needs.
+- A **WebSocket client** (`src/lib/game-client.ts`) that talks to the per-world Durable Object.
+  This is the source of truth for the live world doc and for input results — `getGameClient` is
+  the React-friendly wrapper, and the existing `useWorldState`/`useSendInput`/etc. hooks live in
+  `src/hooks/`. See `MIGRATION.md` for the full Convex-hook → new-hook map.
 
-We also provide a `useSendInput` hook that wraps `useMutation` and automatically sends inputs to the server and
-waits for the engine to process them and return their outcome.
+The one exception is for historical fields, which feed the latest state into a
+`useHistoricalValue` hook that parses the history buffer and replays time forward for smooth
+motion. To keep replayed time synchronized across multiple historical buffers, the
+`useHistoricalTime` hook at the top of the tree tracks current time and is passed down into
+components.
 
 ## Agent architecture (`workers/src/agent`)
 
 ### The agent loop (`shared/aiWorld/agent.ts`)
 
-Agents will execute any game state changes, and schedule operations to do anything that requires
-a long-lived request or accessing non-game tables. The flow generally is:
+Agents execute any game state changes inline in the tick, and schedule operations to do anything
+that requires a long-lived request (LLM calls, vector search) or accessing non-game tables. The
+flow is:
 
-1. Logic in `Agent.tick` can read and modify game state as time progresses, such as waiting until
-   the agent is near another player to start talking.
+1. Logic in `Agent.tick` reads and modifies game state as time progresses — for example, waiting
+   until the agent is near another player to start talking.
 2. When there is something that needs to talk to an LLM or read/write external data,
-   it calls `startOperation` with a reference to a Convex function: generally an `internalAction`.
-3. This function can read state from game tables and other tables via `internalQuery` functions.
-4. It executes long-running tasks, and can write data via `internalMutation`s.
-   Game state should not be written, but rather submitted via `inputs` (described in a previous section).
-5. Inputs are submitted from actions with `ctx.runMutation(api.game.main.sendInput, {...})` from actions
-   or via `insertInput` from mutations. They are referenced by their name as a string, like `moveTo`.
-6. Inputs are defined with `inputHandler` and are given an instance of the AiWorld game to modify,
-   similar to the game loop. In fact, these are called as part of the game loop before `tickAgent`.
-7. When an operation is done, it deletes the `inProgressOperation`. This is to ensure an agent only
-   is trying to do one thing at a time.
-8. `Agent.tick` then can observe the new game state and continue to make decisions.
+   `Agent.tick` calls `startOperation` with the operation name (e.g. `agentGenerateMessage`).
+3. The DO emits the operation to the surrounding Worker via `OPERATIONS_URL`. The Worker looks
+   up the operation in `workers/src/agent/operations.ts` and runs it off the tick loop.
+4. The operation can read agent tables directly via the service-role Supabase client and write
+   results back into agent tables (memories, embeddings).
+5. Game state must not be written from operations — instead, the operation submits a follow-up
+   input back to the DO with `sendInput`. Inputs are referenced by their name as a string, like
+   `moveTo` or `finishRememberConversation`.
+6. Inputs are defined with `inputHandler` and are given an instance of the AiWorld game to
+   modify, similar to the game loop. In fact, these are called as part of the next tick before
+   `tickAgent`.
+7. When an operation completes, the follow-up input clears the agent's `inProgressOperation`.
+   This ensures an agent only does one thing at a time.
+8. `Agent.tick` then observes the new game state and continues to make decisions.
 
 ### Conversations (`workers/src/agent/conversations.ts`)
 
 The agent code calls into the conversation layer which implements the prompt engineering for
-injecting personality and memories into the GPT responses. It has functions for starting a
-conversation (`startConversation`), continuing after the first message (`continueConversation`), and
-politely leaving a conversation (`leaveConversation`). Each function loads structured data from the
-database, queries the memory layer for the agent's opinion about the player they're talking with,
-and then calls into the OpenAI client (`shared/util/openai.ts`).
+injecting personality and memories into the LLM responses. It has functions for starting a
+conversation (`startConversationMessage`), continuing after the first message
+(`continueConversationMessage`), and politely leaving a conversation (`leaveConversationMessage`).
+Each function loads structured data from Postgres, queries the memory layer for the agent's
+opinion about the player they're talking with, and then calls the configured LLM client
+(`shared/util/llm.ts`).
 
 ### Memories (`workers/src/agent/memory.ts`)
 
-After each conversation, GPT summarizes its message history, and we compute an embedding of the
-summary text and write it into Convex's vector database. Then, when starting a new conversation
-with, Danny, we embed "What you think about Danny?", find the three most similar memories, and fetch
+After each conversation the LLM summarizes the message history, and we compute an embedding of
+the summary text and write it into the `memory_embeddings` pgvector table. Then, when starting
+a new conversation with, say, Danny, we embed "What do you think about Danny?", call the
+`match_memories` SQL RPC to find the three most similar memories by cosine similarity, and fetch
 their summary texts to inject into the conversation prompt.
 
 ### Embeddings cache (`workers/src/agent/embeddingsCache.ts`)
 
-To avoid computing the same embedding over and over again, we cache embeddings by a hash of their
-text in a Convex table.
+To avoid computing the same embedding over and over again, we cache embeddings by a hash of
+their text in the Postgres `embeddings_cache` table.
 
 ## Design goals and limitations
 
 AI World's game engine has a few design goals:
 
-- Try to be as close to a regular Convex app as possible. Use regular client hooks (like `useQuery`)
-  when possible, and store game state in regular tables.
-- Be as similar to existing engines as possible, so it's easy to change the behavior. We chose a
-  `tick()` based model for simulation since it's commonly used elsewhere and intuitive.
-- Decouple agent behavior from the game engine. It's nice to allow human players and AI agents to do
-  all the same things in the game.
+- Stay close to "regular Postgres + WebSocket" usage. Game state lives in normal tables that
+  are visible from the Supabase Studio, the dashboard, or `psql`.
+- Be as similar to existing engines as possible, so it's easy to change the behavior. We chose
+  a `tick()` based model for simulation since it's commonly used elsewhere and intuitive.
+- Decouple agent behavior from the game engine. Human players and AI agents do the same things
+  in the game.
 
 These design goals imply some inherent limitations:
 
@@ -290,13 +315,13 @@ These design goals imply some inherent limitations:
   fit.
 - All inputs are fed through the database in the `inputs` table, so applications that require very
   large or frequent inputs may not be a good fit.
-- Input latency will be around one RTT (time for the input to make it to the server and the response
-  to come back) plus half the step size (for expected server input delay when the input's waiting
-  for the next step). Historical values add another half step size of input latency since their
-  values are viewed slightly in the past. As configured, this will roughly be around 1.5s of input
-  latency, which won't be a good fit for competitive games. You can configure the step size to be
-  smaller (e.g. 250ms) which will decrease input latency at the cost of adding more Convex function
-  calls and database bandwidth.
+- Input latency will be around one RTT (time for the input to make it to the server and the
+  response to come back) plus half the step size (for expected server input delay when the
+  input's waiting for the next step). Historical values add another half step size of input
+  latency since their values are viewed slightly in the past. As configured, this will roughly
+  be around 1.5s of input latency, which won't be a good fit for competitive games. You can
+  configure the step size to be smaller (e.g. 250ms) which will decrease input latency at the
+  cost of more Postgres writes per second and more WebSocket fanout traffic.
 - The game engine is designed to be single threaded. JavaScript operating over plain objects
   in-memory can be surprisingly fast, but if your simulation is very computationally expensive, it
   may not be a good fit on AI World's engine today.

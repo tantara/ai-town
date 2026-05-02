@@ -140,11 +140,11 @@ export class WorldDO implements DurableObject {
   // endpoint. The Worker has more time/CPU than a single Alarm tick and can
   // safely talk to slow LLMs.
   private async dispatchAgentOperation(name: string, args: unknown) {
-    if (!(this.env as any).OPERATIONS_URL) {
+    if (!this.env.OPERATIONS_URL) {
       console.warn('OPERATIONS_URL not set; agent operations disabled');
       return;
     }
-    await fetch((this.env as any).OPERATIONS_URL, {
+    await fetch(this.env.OPERATIONS_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ worldId: this.worldId, name, args }),

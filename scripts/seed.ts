@@ -1,8 +1,8 @@
 // Seeds Supabase with the default world, map, and agent descriptions.
-// Run with: `npm run seed` (after `next build`-style env loading).
+// Run with: `pnpm seed` (after `next build`-style env loading).
 //
-// Mirrors what convex/init.ts used to do: create the engine, world,
-// world_status, map, and queue createAgent inputs.
+// Creates the engine, world, world_status, map, and queues a createAgent
+// input for each entry in data/characters.ts.
 
 import { createClient } from '@supabase/supabase-js';
 import * as map from '../data/gentle.js';

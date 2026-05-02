@@ -90,44 +90,45 @@ supabase db reset                  # applies supabase/migrations/00000000000001_
 
 Note the `service_role` key and project URL printed by `supabase status`.
 
-### 2. Cloudflare Worker
+### 2. Install + secrets
+
+The repo is a **pnpm workspace monorepo** — install everything from the root:
 
 ```sh
-cd workers
-npm install
-npx wrangler secret put SUPABASE_URL              # paste from `supabase status`
-npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY # paste from `supabase status`
-# Pick an LLM provider:
-npx wrangler secret put OLLAMA_HOST               # http://host.docker.internal:11434
-# or:
-npx wrangler secret put OPENAI_API_KEY            # sk-…
-# Required so the DO can call back into the Worker for LLM ops:
-echo 'OPERATIONS_URL = "http://127.0.0.1:8787/agentOperations"' >> wrangler.toml
-npm run dev                                       # http://127.0.0.1:8787
+pnpm install
 ```
 
-### 3. Seed the world
+For local dev, `wrangler dev` reads worker secrets from `workers/.dev.vars`:
+
+```sh
+cat > workers/.dev.vars <<EOF
+SUPABASE_URL=http://host.docker.internal:54321
+SUPABASE_SERVICE_ROLE_KEY=ey...
+OPERATIONS_URL=http://127.0.0.1:8787/agentOperations
+OLLAMA_HOST=http://host.docker.internal:11434
+EOF
+```
+
+For production, use `pnpm --filter ai-world-worker exec wrangler secret put …` instead.
+
+### 3. Run the stack
+
+```sh
+cp .env.example .env.local      # NEXT_PUBLIC_SUPABASE_URL, anon key, NEXT_PUBLIC_WORKER_URL, …
+pnpm dev                        # runs Next.js + wrangler concurrently
+```
+
+### 4. Seed the world
 
 In a third terminal:
 
 ```sh
-SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… WORKER_URL=http://127.0.0.1:8787 npm run seed
+SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… WORKER_URL=http://127.0.0.1:8787 pnpm seed
 ```
 
 This creates the engine, world, world_status, map, and queues a `createAgent`
 input for each entry in `data/characters.ts → Descriptions`. The DO picks them
 up on the next tick.
-
-### 4. Frontend
-
-```sh
-cp .env.example .env.local
-npm install
-npm run dev
-```
-
-Set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and
-`NEXT_PUBLIC_WORKER_URL` in `.env.local`.
 
 ## Frontend hook map (Convex → new)
 
@@ -163,7 +164,7 @@ Set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and
 Unit tests live next to the code under test (`*.test.ts`). Run them with:
 
 ```sh
-npm test
+pnpm test
 ```
 
 Coverage today:
