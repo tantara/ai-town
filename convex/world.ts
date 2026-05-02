@@ -1,15 +1,15 @@
 import { ConvexError, v } from 'convex/values';
 import { internalMutation, mutation, query } from './_generated/server';
 import { characters } from '../data/characters';
-import { insertInput } from './aiTown/insertInput';
+import { insertInput } from './aiWorld/insertInput';
 import {
   DEFAULT_NAME,
   ENGINE_ACTION_DURATION,
   IDLE_WORLD_TIMEOUT,
   WORLD_HEARTBEAT_INTERVAL,
 } from './constants';
-import { playerId } from './aiTown/ids';
-import { kickEngine, startEngine, stopEngine } from './aiTown/main';
+import { playerId } from './aiWorld/ids';
+import { kickEngine, startEngine, stopEngine } from './aiWorld/main';
 import { engineInsertInput } from './engine/abstractGame';
 
 export const defaultWorldStatus = query({

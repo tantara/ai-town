@@ -1,4 +1,4 @@
-// Concrete Game class. Mostly identical to convex/aiTown/game.ts; the
+// Concrete Game class. Mostly identical to convex/aiWorld/game.ts; the
 // difference is that load/save go through the Repository module instead of
 // ctx.db, and `agentOperations` are queued for the Worker to dispatch.
 

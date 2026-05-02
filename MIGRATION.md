@@ -43,7 +43,7 @@ This document describes the architecture introduced on the
 ## Layout
 
 ```
-ai-town/
+ai-world/
 ├── supabase/migrations/00000000000001_init.sql   # Postgres schema + RLS + RPC
 ├── workers/                                      # Cloudflare Worker + DO
 │   ├── wrangler.toml
@@ -51,7 +51,7 @@ ai-town/
 │       ├── index.ts          ← HTTP routes
 │       ├── do/world.ts       ← Durable Object (game loop)
 │       ├── engine/           ← ported convex/engine
-│       ├── aiTown/           ← ported convex/aiTown game classes
+│       ├── aiWorld/           ← ported convex/aiWorld game classes
 │       ├── agent/            ← LLM operations + memory + prompts
 │       ├── db/               ← Supabase repository
 │       └── util/             ← geometry, compression, llm client
@@ -65,7 +65,7 @@ ai-town/
 The `convex/` folder is intentionally kept. Most of its files are pure TS data
 classes (`Player`, `Conversation`, `World`, `WorldMap`, …) that the frontend
 still imports for type information. They no longer run on Convex — the same
-classes are duplicated under `workers/src/aiTown/` for runtime use inside the
+classes are duplicated under `workers/src/aiWorld/` for runtime use inside the
 DO. Once you remove every `convex/values` import you can delete the directory
 and drop the `convex` npm dep.
 
@@ -156,6 +156,6 @@ Set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and
   `world_status.status = 'stoppedByDeveloper'`.
 - `convex/` directory is still present for shared TS types. Removing it
   requires migrating each `convex/values`-backed type to the equivalents in
-  `workers/src/aiTown/types.ts`.
+  `workers/src/aiWorld/types.ts`.
 - `useHistoricalValue` was not changed — it doesn't depend on Convex.
 - Music storage was kept as a Supabase Storage URL column; no upload UI yet.

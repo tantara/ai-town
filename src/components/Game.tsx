@@ -9,7 +9,7 @@ import PlayerDetails from './PlayerDetails';
 import { useWorldHeartbeat } from '../hooks/useWorldHeartbeat';
 import { useHistoricalTime } from '../hooks/useHistoricalTime';
 import { DebugTimeManager } from './DebugTimeManager';
-import { GameId } from '../../convex/aiTown/ids';
+import { GameId } from '../../convex/aiWorld/ids';
 import { useServerGame } from '../hooks/serverGame';
 import { useDefaultWorldStatus } from '../hooks/useWorldStatus';
 import { useWorldState } from '../hooks/useWorldState';

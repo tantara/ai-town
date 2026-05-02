@@ -8,7 +8,7 @@ import { SelectElement } from './Player';
 import { Messages } from './Messages';
 import { toastOnError } from '../toasts';
 import { useSendInput } from '../hooks/sendInput';
-import { GameId } from '../../convex/aiTown/ids';
+import { GameId } from '../../convex/aiWorld/ids';
 import { ServerGame } from '../hooks/serverGame';
 import { useUserStatus } from '../hooks/useUserStatus';
 import { usePreviousConversation } from '../hooks/usePreviousConversation';

@@ -284,19 +284,19 @@ export const serializedAgent = {
 };
 export type SerializedAgent = ObjectType<typeof serializedAgent>;
 
-type AgentOperations = typeof internal.aiTown.agentOperations;
+type AgentOperations = typeof internal.aiWorld.agentOperations;
 
 export async function runAgentOperation(ctx: MutationCtx, operation: string, args: any) {
   let reference;
   switch (operation) {
     case 'agentRememberConversation':
-      reference = internal.aiTown.agentOperations.agentRememberConversation;
+      reference = internal.aiWorld.agentOperations.agentRememberConversation;
       break;
     case 'agentGenerateMessage':
-      reference = internal.aiTown.agentOperations.agentGenerateMessage;
+      reference = internal.aiWorld.agentOperations.agentGenerateMessage;
       break;
     case 'agentDoSomething':
-      reference = internal.aiTown.agentOperations.agentDoSomething;
+      reference = internal.aiWorld.agentOperations.agentDoSomething;
       break;
     default:
       throw new Error(`Unknown operation: ${operation}`);

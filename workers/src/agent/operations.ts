@@ -1,4 +1,4 @@
-// Implements the agent operations originally in convex/aiTown/agentOperations.ts.
+// Implements the agent operations originally in convex/aiWorld/agentOperations.ts.
 // Each operation runs in the Worker, then submits a follow-up input back to
 // the Durable Object via an HTTP POST.
 
@@ -10,7 +10,7 @@ import {
   continueConversationMessage,
   leaveConversationMessage,
 } from './conversation';
-import { ACTIVITIES, ACTIVITY_COOLDOWN, CONVERSATION_COOLDOWN, PLAYER_CONVERSATION_COOLDOWN } from '../aiTown/constants';
+import { ACTIVITIES, ACTIVITY_COOLDOWN, CONVERSATION_COOLDOWN, PLAYER_CONVERSATION_COOLDOWN } from '../aiWorld/constants';
 import { distance } from '../util/geometry';
 import { sleep } from '../util/sleep';
 import * as repo from '../db/repository';

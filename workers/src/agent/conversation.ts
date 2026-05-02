@@ -7,7 +7,7 @@ import { chatCompletion, LLMMessage } from '../util/llm';
 import { listMessages } from '../db/repository';
 import * as memory from './memory';
 import * as embeddingsCache from './embeddingsCache';
-import { NUM_MEMORIES_TO_SEARCH } from '../aiTown/constants';
+import { NUM_MEMORIES_TO_SEARCH } from '../aiWorld/constants';
 
 type PromptData = {
   player: { id: string; name: string };

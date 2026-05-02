@@ -1,5 +1,5 @@
--- AI Town schema for Supabase (Postgres).
--- Maps the Convex schema (convex/schema.ts, convex/aiTown/schema.ts,
+-- AI World schema for Supabase (Postgres).
+-- Maps the Convex schema (convex/schema.ts, convex/aiWorld/schema.ts,
 -- convex/agent/schema.ts, convex/engine/schema.ts) to relational tables.
 --
 -- Hot-path game state lives in JSONB columns because the original engine
@@ -23,7 +23,7 @@ create table public.engines (
 );
 
 -- ---------------------------------------------------------------------------
--- worlds: single-document game state (mirrors convex aiTown/world.ts).
+-- worlds: single-document game state (mirrors convex aiWorld/world.ts).
 -- The `state` JSONB matches `serializedWorld`:
 --   { nextId, players[], conversations[], agents[], historicalLocations? }
 -- ---------------------------------------------------------------------------

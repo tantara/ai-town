@@ -1,5 +1,5 @@
 // Plain-TS shape declarations for serialized game state. These mirror the
-// `serialized*` schemas in convex/aiTown/* but as TypeScript interfaces so
+// `serialized*` schemas in convex/aiWorld/* but as TypeScript interfaces so
 // the engine code can run inside a Cloudflare Durable Object without pulling
 // in `convex/values`.
 

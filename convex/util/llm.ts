@@ -35,12 +35,13 @@ export function detectMismatchedLLMProvider() {
 }
 
 export interface LLMConfig {
-  provider: 'openai' | 'together' | 'ollama' | 'custom';
+  provider: 'openai' | 'together' | 'ollama' | 'custom' | 'openrouter';
   url: string; // Should not have a trailing slash
   chatModel: string;
   embeddingModel: string;
   stopWords: string[];
   apiKey: string | undefined;
+  extraHeaders?: Record<string, string>;
 }
 
 export function getLLMConfig(): LLMConfig {
@@ -56,6 +57,23 @@ export function getLLMConfig(): LLMConfig {
       embeddingModel: process.env.OPENAI_EMBEDDING_MODEL ?? 'text-embedding-ada-002',
       stopWords: [],
       apiKey: process.env.OPENAI_API_KEY,
+    };
+  }
+  if (provider ? provider === 'openrouter' : process.env.OPENROUTER_API_KEY) {
+    return {
+      provider: 'openrouter',
+      url: 'https://openrouter.ai/api',
+      chatModel: process.env.OPENROUTER_CHAT_MODEL ?? 'deepseek/deepseek-v4-flash',
+      // OpenRouter does not host embedding models. Fall back to a separate
+      // provider (OpenAI / Together / Ollama) for embeddings via
+      // OPENROUTER_EMBEDDING_MODEL or the regular *_EMBEDDING_MODEL vars.
+      embeddingModel: process.env.OPENROUTER_EMBEDDING_MODEL ?? 'text-embedding-ada-002',
+      stopWords: [],
+      apiKey: process.env.OPENROUTER_API_KEY,
+      extraHeaders: {
+        ...(process.env.OPENROUTER_REFERER ? { 'HTTP-Referer': process.env.OPENROUTER_REFERER } : {}),
+        ...(process.env.OPENROUTER_TITLE ? { 'X-Title': process.env.OPENROUTER_TITLE } : {}),
+      },
     };
   }
   if (process.env.TOGETHER_API_KEY) {
@@ -109,12 +127,13 @@ export function getLLMConfig(): LLMConfig {
   };
 }
 
-const AuthHeaders = (): Record<string, string> =>
-  getLLMConfig().apiKey
-    ? {
-        Authorization: 'Bearer ' + getLLMConfig().apiKey,
-      }
-    : {};
+const AuthHeaders = (): Record<string, string> => {
+  const config = getLLMConfig();
+  return {
+    ...(config.apiKey ? { Authorization: 'Bearer ' + config.apiKey } : {}),
+    ...(config.extraHeaders ?? {}),
+  };
+};
 
 // Overload for non-streaming
 export async function chatCompletion(

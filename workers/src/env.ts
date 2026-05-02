@@ -7,10 +7,15 @@ export interface Env {
   SUPABASE_SERVICE_ROLE_KEY: string;
 
   // LLM
-  LLM_PROVIDER?: 'openai' | 'together' | 'ollama' | 'custom';
+  LLM_PROVIDER?: 'openai' | 'together' | 'ollama' | 'custom' | 'openrouter';
   OPENAI_API_KEY?: string;
   OPENAI_CHAT_MODEL?: string;
   OPENAI_EMBEDDING_MODEL?: string;
+  OPENROUTER_API_KEY?: string;
+  OPENROUTER_CHAT_MODEL?: string;
+  OPENROUTER_EMBEDDING_MODEL?: string;
+  OPENROUTER_REFERER?: string;
+  OPENROUTER_TITLE?: string;
   TOGETHER_API_KEY?: string;
   TOGETHER_CHAT_MODEL?: string;
   TOGETHER_EMBEDDING_MODEL?: string;

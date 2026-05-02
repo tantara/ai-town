@@ -2,12 +2,12 @@ import { Character } from './Character';
 import { orientationDegrees } from '../../convex/util/geometry';
 import { characters } from '../../data/characters';
 import { toast } from 'sonner';
-import { Player as ServerPlayer } from '../../convex/aiTown/player';
-import { GameId } from '../../convex/aiTown/ids';
-import { Location, locationFields, playerLocation } from '../../convex/aiTown/location';
+import { Player as ServerPlayer } from '../../convex/aiWorld/player';
+import { GameId } from '../../convex/aiWorld/ids';
+import { Location, locationFields, playerLocation } from '../../convex/aiWorld/location';
 import { useHistoricalValue } from '../hooks/useHistoricalValue';
-import { PlayerDescription } from '../../convex/aiTown/playerDescription';
-import { WorldMap } from '../../convex/aiTown/worldMap';
+import { PlayerDescription } from '../../convex/aiWorld/playerDescription';
+import { WorldMap } from '../../convex/aiWorld/worldMap';
 import { ServerGame } from '../hooks/serverGame';
 
 export type SelectElement = (element?: { kind: 'player'; id: GameId<'players'> }) => void;

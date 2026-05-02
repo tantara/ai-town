@@ -12,12 +12,13 @@ const OLLAMA_EMBEDDING_DIMENSION = 1024;
 export const EMBEDDING_DIMENSION: number = OLLAMA_EMBEDDING_DIMENSION;
 
 export interface LLMConfig {
-  provider: 'openai' | 'together' | 'ollama' | 'custom';
+  provider: 'openai' | 'together' | 'ollama' | 'custom' | 'openrouter';
   url: string;
   chatModel: string;
   embeddingModel: string;
   stopWords: string[];
   apiKey: string | undefined;
+  extraHeaders?: Record<string, string>;
 }
 
 export function getLLMConfig(env: Env): LLMConfig {
@@ -30,6 +31,20 @@ export function getLLMConfig(env: Env): LLMConfig {
       embeddingModel: env.OPENAI_EMBEDDING_MODEL ?? 'text-embedding-ada-002',
       stopWords: [],
       apiKey: env.OPENAI_API_KEY,
+    };
+  }
+  if (provider ? provider === 'openrouter' : env.OPENROUTER_API_KEY) {
+    return {
+      provider: 'openrouter',
+      url: 'https://openrouter.ai/api',
+      chatModel: env.OPENROUTER_CHAT_MODEL ?? 'deepseek/deepseek-v4-flash',
+      embeddingModel: env.OPENROUTER_EMBEDDING_MODEL ?? 'text-embedding-ada-002',
+      stopWords: [],
+      apiKey: env.OPENROUTER_API_KEY,
+      extraHeaders: {
+        ...(env.OPENROUTER_REFERER ? { 'HTTP-Referer': env.OPENROUTER_REFERER } : {}),
+        ...(env.OPENROUTER_TITLE ? { 'X-Title': env.OPENROUTER_TITLE } : {}),
+      },
     };
   }
   if (env.TOGETHER_API_KEY) {
@@ -123,6 +138,7 @@ export async function chatCompletion(env: Env, body: ChatRequest) {
       headers: {
         'Content-Type': 'application/json',
         ...(config.apiKey ? { Authorization: 'Bearer ' + config.apiKey } : {}),
+        ...(config.extraHeaders ?? {}),
       },
       body: JSON.stringify({ ...body, model, stop: stopWords.length ? stopWords : undefined }),
     });
@@ -156,6 +172,7 @@ export async function fetchEmbeddingBatch(env: Env, texts: string[]) {
       headers: {
         'Content-Type': 'application/json',
         ...(config.apiKey ? { Authorization: 'Bearer ' + config.apiKey } : {}),
+        ...(config.extraHeaders ?? {}),
       },
       body: JSON.stringify({
         model: config.embeddingModel,

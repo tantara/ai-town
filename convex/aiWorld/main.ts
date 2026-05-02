@@ -49,7 +49,7 @@ export async function startEngine(ctx: MutationCtx, worldId: Id<'worlds'>) {
     running: true,
     generationNumber,
   });
-  await ctx.scheduler.runAfter(0, internal.aiTown.main.runStep, {
+  await ctx.scheduler.runAfter(0, internal.aiWorld.main.runStep, {
     worldId: worldId,
     generationNumber,
     maxDuration: ENGINE_ACTION_DURATION,
@@ -67,7 +67,7 @@ export async function kickEngine(ctx: MutationCtx, worldId: Id<'worlds'>) {
   }
   const generationNumber = engine.generationNumber + 1;
   await ctx.db.patch(engineId, { generationNumber });
-  await ctx.scheduler.runAfter(0, internal.aiTown.main.runStep, {
+  await ctx.scheduler.runAfter(0, internal.aiWorld.main.runStep, {
     worldId: worldId,
     generationNumber,
     maxDuration: ENGINE_ACTION_DURATION,
@@ -94,7 +94,7 @@ export const runStep = internalAction({
   },
   handler: async (ctx, args) => {
     try {
-      const { engine, gameState } = await ctx.runQuery(internal.aiTown.game.loadWorld, {
+      const { engine, gameState } = await ctx.runQuery(internal.aiWorld.game.loadWorld, {
         worldId: args.worldId,
         generationNumber: args.generationNumber,
       });
@@ -108,7 +108,7 @@ export const runStep = internalAction({
         await sleep(sleepUntil - now);
         now = Date.now();
       }
-      await ctx.scheduler.runAfter(0, internal.aiTown.main.runStep, {
+      await ctx.scheduler.runAfter(0, internal.aiWorld.main.runStep, {
         worldId: args.worldId,
         generationNumber: game.engine.generationNumber,
         maxDuration: args.maxDuration,

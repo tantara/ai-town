@@ -3,9 +3,9 @@ import { internal } from './_generated/api';
 import { DatabaseReader, MutationCtx, mutation } from './_generated/server';
 import { Descriptions } from '../data/characters';
 import * as map from '../data/gentle';
-import { insertInput } from './aiTown/insertInput';
+import { insertInput } from './aiWorld/insertInput';
 import { Id } from './_generated/dataModel';
-import { createEngine } from './aiTown/main';
+import { createEngine } from './aiWorld/main';
 import { ENGINE_ACTION_DURATION } from './constants';
 import { detectMismatchedLLMProvider } from './util/llm';
 
@@ -79,7 +79,7 @@ async function getOrCreateDefaultWorld(ctx: MutationCtx) {
     objectTiles: map.objmap,
     animatedSprites: map.animatedsprites,
   });
-  await ctx.scheduler.runAfter(0, internal.aiTown.main.runStep, {
+  await ctx.scheduler.runAfter(0, internal.aiWorld.main.runStep, {
     worldId,
     generationNumber: engine.generationNumber,
     maxDuration: ENGINE_ACTION_DURATION,
