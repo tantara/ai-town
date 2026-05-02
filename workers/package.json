@@ -1,10 +1,11 @@
 {
-  "name": "ai-world-workers",
+  "name": "ai-world-worker",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev",
+    "dev": "wrangler dev --port 8787",
+    "build": "wrangler deploy --dry-run --outdir dist",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit"
   },
