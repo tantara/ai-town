@@ -87,4 +87,38 @@ describe('compression', () => {
       expect(data).toEqual(roundtripped);
     }
   });
+
+  test('runLengthEncode emits [value, count] pairs', () => {
+    expect(runLengthEncode([5, 5, 5, 7, 7, 9])).toEqual([5, 3, 7, 2, 9, 1]);
+  });
+
+  test('runLengthEncode of an empty array is empty', () => {
+    expect(runLengthEncode([])).toEqual([]);
+    expect(runLengthDecode([])).toEqual([]);
+  });
+
+  test('runLengthDecode rejects malformed (odd-length) input', () => {
+    expect(() => runLengthDecode([1, 2, 3])).toThrow('Invalid RLE encoded length: 3');
+  });
+
+  test('deltaEncode honors the optional initial value', () => {
+    expect(deltaEncode([10, 12, 15], 10)).toEqual([0, 2, 3]);
+    expect(deltaDecode([0, 2, 3], 10)).toEqual([10, 12, 15]);
+  });
+
+  test('deltaEncode of an empty array is empty', () => {
+    expect(deltaEncode([])).toEqual([]);
+    expect(deltaDecode([])).toEqual([]);
+  });
+
+  test('quantize floors values toward negative infinity', () => {
+    // precision 0 → factor 1, so quantize === Math.floor
+    expect(quantize([1.7, -1.2, 0], 0)).toEqual([1, -2, 0]);
+    // precision 1 → factor 2
+    expect(quantize([1.6, -0.5], 1)).toEqual([3, -1]);
+  });
+
+  test('unquantize is the inverse on integer inputs', () => {
+    expect(unquantize([3, -1], 1)).toEqual([1.5, -0.5]);
+  });
 });

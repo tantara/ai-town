@@ -78,7 +78,7 @@ export class HistoricalObject<T extends Record<string, number>> {
   history: Record<string, History> = {};
 
   constructor(fields: FieldConfig, initialValue: T) {
-    if (fields.length >= MAX_FIELDS) {
+    if (fields.length > MAX_FIELDS) {
       throw new Error(`HistoricalObject can have at most ${MAX_FIELDS} fields.`);
     }
     this.fieldConfig = normalizeFieldConfig(fields);

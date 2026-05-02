@@ -251,6 +251,69 @@ describe('orientationDegrees', () => {
 });
 
 
+describe('pathOverlaps boundaries', () => {
+  test('should return true at the exact start time', () => {
+    const path: Path = [
+      [0, 0, 0, 1, 1],
+      [0, 2, 0, 1, 2],
+    ];
+    expect(pathOverlaps(path, 1)).toBe(true);
+  });
+
+  test('should return true at the exact end time', () => {
+    const path: Path = [
+      [0, 0, 0, 1, 1],
+      [0, 2, 0, 1, 2],
+    ];
+    expect(pathOverlaps(path, 2)).toBe(true);
+  });
+
+  test('should throw on an empty path', () => {
+    expect(() => pathOverlaps([], 0)).toThrowError('Invalid path: []');
+  });
+});
+
+describe('pathPosition extra cases', () => {
+  test('exact segment boundary returns the segment start', () => {
+    const path: Path = [
+      [0, 0, 1, 0, 0],
+      [10, 0, 1, 0, 10],
+      [10, 10, 0, 1, 20],
+    ];
+    const result = pathPosition(path, 10);
+    // At t=10 we sit on the boundary of the first segment.
+    expect(result.position).toEqual({ x: 10, y: 0 });
+  });
+
+  test('reports velocity along a segment', () => {
+    const path: Path = [
+      [0, 0, 1, 0, 0],
+      [3, 4, 1, 0, 5],
+    ];
+    const result = pathPosition(path, 2.5);
+    // Distance 5 / time 5 = 1.0 units/time.
+    expect(result.velocity).toBeCloseTo(1);
+  });
+});
+
+describe('vectorLength', () => {
+  test('returns the correct length for a vector with zero dx', () => {
+    expect(vectorLength({ dx: 0, dy: 5 })).toBe(5);
+  });
+});
+
+describe('normalize', () => {
+  test('normalizes a unit vector to itself', () => {
+    expect(normalize({ dx: 1, dy: 0 })).toEqual({ dx: 1, dy: 0 });
+  });
+
+  test('normalizes a negative vector correctly', () => {
+    const result = normalize({ dx: -3, dy: -4 });
+    expect(result?.dx).toBeCloseTo(-0.6);
+    expect(result?.dy).toBeCloseTo(-0.8);
+  });
+});
+
 describe('compressPath', () => {
   test('should not compress a path with only 2 entries', () => {
     const facing = { dx: 0, dy: 1 };
