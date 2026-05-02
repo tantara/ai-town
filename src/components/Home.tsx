@@ -18,8 +18,7 @@ import InteractButton from './buttons/InteractButton';
 import FreezeButton from './FreezeButton';
 import LoginButton from './buttons/LoginButton';
 import UserButton from './buttons/UserButton';
-import PoweredByConvex from './PoweredByConvex';
-import { MAX_HUMAN_PLAYERS } from '../../convex/constants';
+import { MAX_HUMAN_PLAYERS } from '../../shared/aiWorld/constants';
 
 export default function Home() {
   const [helpOpen, setHelpOpen] = useState(false);
@@ -27,8 +26,6 @@ export default function Home() {
 
   return (
     <main className="relative flex min-h-screen flex-col items-center justify-between font-body game-background">
-      <PoweredByConvex />
-
       <Dialog open={helpOpen} onOpenChange={setHelpOpen}>
         <DialogContent className="font-body">
           <DialogHeader>
@@ -102,10 +99,6 @@ export default function Home() {
           <a href="https://a16z.com">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img className="w-8 h-8 pointer-events-auto" src="/assets/a16z.png" alt="a16z" />
-          </a>
-          <a href="https://convex.dev/c/ai-town">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img className="w-20 h-8 pointer-events-auto" src="/assets/convex.svg" alt="Convex" />
           </a>
         </footer>
         <Toaster />

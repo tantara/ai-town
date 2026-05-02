@@ -2,7 +2,7 @@
 // Each operation runs in the Worker, then submits a follow-up input back to
 // the Durable Object via an HTTP POST.
 
-import type { DB } from '../db/supabase';
+import type { DB } from '../../../shared/db/supabase';
 import type { Env } from '../env';
 import { rememberConversation } from './memory';
 import {
@@ -10,10 +10,10 @@ import {
   continueConversationMessage,
   leaveConversationMessage,
 } from './conversation';
-import { ACTIVITIES, ACTIVITY_COOLDOWN, CONVERSATION_COOLDOWN, PLAYER_CONVERSATION_COOLDOWN } from '../aiWorld/constants';
-import { distance } from '../util/geometry';
-import { sleep } from '../util/sleep';
-import * as repo from '../db/repository';
+import { ACTIVITIES, ACTIVITY_COOLDOWN, CONVERSATION_COOLDOWN, PLAYER_CONVERSATION_COOLDOWN } from '../../../shared/aiWorld/constants';
+import { distance } from '../../../shared/util/geometry';
+import { sleep } from '../../../shared/util/sleep';
+import * as repo from '../../../shared/db/repository';
 
 async function sendInput(env: Env, worldId: string, name: string, args: any) {
   // Submit input to the world's Durable Object.

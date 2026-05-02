@@ -1,7 +1,11 @@
-# Convex → Supabase + Cloudflare Hybrid Migration
+# Convex → Supabase + Cloudflare Migration
 
-This document describes the architecture introduced on the
-`claude/replace-convex-supabase-uaYU5` branch and how to run it.
+This document describes the architecture that replaces Convex with Supabase
+Postgres + Cloudflare Workers / Durable Objects, and how to run it locally.
+
+The migration is now complete: there is no `convex/` directory and no `convex`
+npm dependency. All shared TypeScript code lives under `shared/` and is
+imported by both the Next.js frontend and the Cloudflare Worker.
 
 ## Architecture
 
@@ -45,29 +49,31 @@ This document describes the architecture introduced on the
 ```
 ai-world/
 ├── supabase/migrations/00000000000001_init.sql   # Postgres schema + RLS + RPC
+├── shared/                                       # Shared TS used by both
+│   ├── aiWorld/              ← Player/Conversation/World/Map/etc data classes
+│   ├── engine/               ← AbstractGame, historicalObject
+│   ├── db/                   ← Supabase repository + admin client
+│   └── util/                 ← geometry, compression, types, llm client
 ├── workers/                                      # Cloudflare Worker + DO
 │   ├── wrangler.toml
 │   └── src/
-│       ├── index.ts          ← HTTP routes
+│       ├── index.ts          ← HTTP routes (incl. /freeze, /resume)
+│       ├── lifecycle.ts      ← freezeWorld / resumeWorld helpers
 │       ├── do/world.ts       ← Durable Object (game loop)
-│       ├── engine/           ← ported convex/engine
-│       ├── aiWorld/           ← ported convex/aiWorld game classes
 │       ├── agent/            ← LLM operations + memory + prompts
-│       ├── db/               ← Supabase repository
-│       └── util/             ← geometry, compression, llm client
+│       └── env.ts            ← Worker bindings
 ├── scripts/seed.ts           ← creates default world + queues agents
-├── src/                      ← Next.js frontend (now uses Supabase + WS)
-│   ├── lib/{supabase,game-client}.ts
-│   └── hooks/                ← drop-in replacements for useQuery/useMutation
-└── convex/                   ← KEPT during transition (typed models still imported)
+└── src/                      ← Next.js frontend (Supabase + WS)
+    ├── lib/{supabase,game-client}.ts
+    └── hooks/                ← Convex hook replacements
 ```
 
-The `convex/` folder is intentionally kept. Most of its files are pure TS data
-classes (`Player`, `Conversation`, `World`, `WorldMap`, …) that the frontend
-still imports for type information. They no longer run on Convex — the same
-classes are duplicated under `workers/src/aiWorld/` for runtime use inside the
-DO. Once you remove every `convex/values` import you can delete the directory
-and drop the `convex` npm dep.
+The `shared/` directory holds every TypeScript module imported by both the
+frontend (via `../../shared/...`) and the Worker (via `../../shared/...` from
+`workers/src/agent` or `do`, and `../../../shared/...` from deeper paths).
+These modules are pure TypeScript with no `convex/values` dependency — input
+validation now happens at the system boundary (Worker HTTP routes) instead of
+inside data classes.
 
 ## Running locally
 
@@ -149,13 +155,31 @@ Set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and
 - pgvector with `ivfflat (lists=100)` — rebuild with more lists once you have
   more than ~10k embeddings.
 
+## Tests
+
+Unit tests live next to the code under test (`*.test.ts`). Run them with:
+
+```sh
+npm test
+```
+
+Coverage today:
+
+- `shared/util/` — geometry, compression, asyncMap, minheap, types, object
+- `shared/aiWorld/` — ids, location
+- `shared/engine/` — historicalObject
+- `shared/db/repository.test.ts` — engine inputs, world status, world heartbeat
+- `shared/util/llm.test.ts` — provider selection (OpenAI / OpenRouter /
+  Together / custom / Ollama fallback) and the `LLM_PROVIDER` override
+- `workers/src/lifecycle.test.ts` — `freezeWorld` / `resumeWorld` against a
+  mocked DB and DO stub, including the "DB write fails → DO is not kicked"
+  invariant
+- `workers/src/agent/operations.test.ts` — registry shape
+
+The DO tick loop, WebSocket fanout, and end-to-end Supabase/Postgres paths are
+not unit-tested; those are exercised by running the full stack locally.
+
 ## Known TODOs
 
-- `/freeze` and `/resume` Worker routes (used by `<FreezeButton>`) are not
-  implemented yet; the SQL + DO already support pausing via
-  `world_status.status = 'stoppedByDeveloper'`.
-- `convex/` directory is still present for shared TS types. Removing it
-  requires migrating each `convex/values`-backed type to the equivalents in
-  `workers/src/aiWorld/types.ts`.
 - `useHistoricalValue` was not changed — it doesn't depend on Convex.
 - Music storage was kept as a Supabase Storage URL column; no upload UI yet.

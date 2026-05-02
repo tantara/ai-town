@@ -1,8 +1,8 @@
 // Cached embedding lookup. Mirrors convex/agent/embeddingsCache.ts.
 
-import type { DB } from '../db/supabase';
-import { fetchEmbedding } from '../util/llm';
-import { xxHash32 } from '../util/xxhash';
+import type { DB } from '../../../shared/db/supabase';
+import { fetchEmbedding } from '../../../shared/util/llm';
+import { xxHash32 } from '../../../shared/util/xxhash';
 import type { Env } from '../env';
 
 function hashKey(text: string): Uint8Array {

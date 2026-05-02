@@ -1,6 +1,10 @@
 # AI World 🏠💻💌
 
-[Live Demo](https://www.convex.dev/ai-town)
+> **Stack note:** AI World was originally built on Convex. This fork has been
+> migrated to **Supabase Postgres + Cloudflare Workers / Durable Objects**.
+> See [`MIGRATION.md`](./MIGRATION.md) for the current setup. The Convex-flavored
+> instructions below in this README are kept for historical reference only and
+> no longer apply to running the project.
 
 [Join our community Discord: AI Stack Devs](https://discord.gg/PQUmTBTGmT)
 

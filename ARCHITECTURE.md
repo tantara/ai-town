@@ -5,48 +5,49 @@ first start with a brief overview and then go in-depth on each component. The ov
 be sufficient for forking AI World and changing game or agent behavior. Read on to the deep dives
 if you're interested or running up against the engine's limitations.
 
-This doc assumes the reader has a working knowledge of Convex. If you're new to Convex, check out
-the [Convex tutorial](https://docs.convex.dev/get-started) to get started.
+The runtime now lives on Cloudflare Workers + Durable Objects with Supabase
+Postgres as the source of truth (replacing the original Convex backend). See
+`MIGRATION.md` for how the old Convex primitives map onto the new ones.
 
 ## Overview
 
 AI World is split into a few layers:
 
-- The server-side game logic in `convex/aiWorld`: This layer defines what state AI World maintains,
+- The server-side game logic in `shared/aiWorld`: This layer defines what state AI World maintains,
   how it evolves over time, and how it reacts to user input. Both humans and agents submit inputs
   that the game engine processes.
 - The client-side game UI in `src/`: AI World uses `pixi-react` to render the game state to the
   browser for human consumption.
-- The game engine in `convex/engine`: To make it easy to hack on the game rules, we've separated
+- The game engine in `shared/engine`: To make it easy to hack on the game rules, we've separated
   out the game engine from the AI World-specific game rules. The game engine is responsible for
   saving and loading game state from the database, coordinating feeding inputs into the engine,
   and actually running the game engine in Convex functions.
-- The agent in `convex/agent`: Agents run as part of the game loop, and can kick off asynchronous
+- The agent in `workers/src/agent`: Agents run as part of the game loop, and can kick off asynchronous
   Convex functions to do longer processing, such as talking to LLMs. Those functions can save state
   in separate tables, or submit inputs to the game engine to modify game state. Internally, our
   agents use a combination of simple rule-based systems and talking to an LLM.
 
-So, if you'd like to tweak agent behavior but keep the same game mechanics, check out `convex/agent`
-for the async work, and `convex/aiWorld/agent.ts` for the game loop logic.
+So, if you'd like to tweak agent behavior but keep the same game mechanics, check out `workers/src/agent`
+for the async work, and `shared/aiWorld/agent.ts` for the game loop logic.
 If you would like to add new gameplay elements (that both humans and agents can interact with), add
-the feature to `convex/aiWorld`, render it in the UI in `src/`, and respond to it in `convex/aiWorld/agent.ts`.
+the feature to `shared/aiWorld`, render it in the UI in `src/`, and respond to it in `shared/aiWorld/agent.ts`.
 
 If you have parts of your game that are more latency sensitive, you can move them out of engine
 into regular Convex tables, queries, and mutations, only logging key bits into game state. See
 "Message data model" below for an example.
 
-## AI World game logic (`convex/aiWorld`)
+## AI World game logic (`shared/aiWorld`)
 
 ### Data model
 
 AI World's data model has a few concepts:
 
-- Worlds (`convex/aiWorld/world.ts`) represent a map with many players interacting together.
-- Players (`convex/aiWorld/player.ts`) are the core characters in the game. Players have human readable names and
+- Worlds (`shared/aiWorld/world.ts`) represent a map with many players interacting together.
+- Players (`shared/aiWorld/player.ts`) are the core characters in the game. Players have human readable names and
   descriptions, and they may be associated with a human user. At any point in time, a player may be pathfinding
   towards some destination and has a current location.
-- Conversations (`convex/aiWorld/conversations.ts`) are created by a player and end at some point in time.
-- Conversation memberships (`convex/aiWorld/conversationMembership.ts`) indicate that a player is a member
+- Conversations (`shared/aiWorld/conversations.ts`) are created by a player and end at some point in time.
+- Conversation memberships (`shared/aiWorld/conversationMembership.ts`) indicate that a player is a member
   of a conversation. Players may only be in one conversation at any point in time, and conversations
   currently have exactly two members. Memberships may be in one of three states:
   - `invited`: The player has been invited to the conversation but hasn't accepted yet.
@@ -58,16 +59,16 @@ AI World's data model has a few concepts:
 
 There are three main categories of tables:
 
-1. Engine tables (`convex/engine/schema.ts`) for maintaining engine-internal state.
-2. Game tables (`convex/aiWorld/schema.ts`) for game state. To keep game state small and efficient to
-   read and write, we store AI World's data model across a few tables. See `convex/aiWorld/schema.ts` for an overview.
-3. Agent tables (`convex/agent/schema.ts`) for agent state. Agents can freely read and write to these tables
+1. Engine tables (`shared/engine/schema.ts`) for maintaining engine-internal state.
+2. Game tables (`shared/aiWorld/schema.ts`) for game state. To keep game state small and efficient to
+   read and write, we store AI World's data model across a few tables. See `shared/aiWorld/schema.ts` for an overview.
+3. Agent tables (`workers/src/agent/schema.ts`) for agent state. Agents can freely read and write to these tables
    within their actions.
 
-### Inputs (`convex/aiWorld/inputs.ts`)
+### Inputs (`shared/aiWorld/inputs.ts`)
 
 AI World modifies its data model by processing inputs. Inputs are submitted by players and agents and
-processed by the game engine. We specify inputs in the `inputs` object in `convex/aiWorld/inputs.ts`.
+processed by the game engine. We specify inputs in the `inputs` object in `shared/aiWorld/inputs.ts`.
 Use the `inputHandler` function to construct an input handler, specifying a Convex validator for
 arguments for end-to-end type-safety.
 
@@ -103,7 +104,7 @@ with the game engine. This is for a few reasons:
   benefit from lower input latency, so they're not a great fit for the engine.
   See "Design goals and limitations" below.
 
-Messages (`convex/schema.ts`) are in a conversation and indicate an author and message text.
+Messages (defined in `supabase/migrations/00000000000001_init.sql`) are in a conversation and indicate an author and message text.
 Each conversation has a typing state in the conversations table that indicates that a player
 is currently typing. Players can still send messages while another player is typing, but
 having the indicator helps agents (and humans) not talk over each other.
@@ -111,10 +112,10 @@ having the indicator helps agents (and humans) not talk over each other.
 The separate tables are queried and modified with regular Convex queries and mutations
 that don't directly go through the simulation.
 
-## Game engine (`convex/engine`)
+## Game engine (`shared/engine`)
 
 Given the description of AI World's game behavior in the previous section,
-the `AbstractGame` class in `convex/engine/abstractGame.ts` implements actually running the simulation.
+the `AbstractGame` class in `shared/engine/abstractGame.ts` implements actually running the simulation.
 The game engine has a few responsibilities:
 
 - Coordinating incoming player inputs, feeding them into the simulation, and sending their
@@ -174,8 +175,8 @@ generation number does not match its expected one.
 The `World`, `Player`, `Conversation`, and `Agent` classes coordinate loading data into memory from the database,
 modifying it according to the game rules, and serializing it to write back out to the database. Here's the flow:
 
-1. The Convex scheduler calls the `convex/aiWorld/main.ts:runStep` action.
-2. The `runStep` action calls `convex/aiWorld/game.ts:loadWorld` to load the current game state. This query calls
+1. The Convex scheduler calls the `shared/aiWorld/main.ts:runStep` action.
+2. The `runStep` action calls `shared/aiWorld/game.ts:loadWorld` to load the current game state. This query calls
    `Game.load`, which loads all of a world's game state from the appropriate tables, and returns a
    `GameState` object, which contains serialized versions of all of the players, agents, etc.
 3. The `runStep` action passes the `GameState` to the `Game` constructor, which parses the serialized versions
@@ -183,7 +184,7 @@ modifying it according to the game rules, and serializing it to write back out t
    database representation into the in-memory `Player` class.
 4. The engine runs the simulation, modifying the in-memory game objects.
 5. At the end of a step, the framework calls `Game.saveStep`, which computes a diff of the game state since
-   the beginning of the step and passes the diff to the `convex/aiWorld/game.ts:saveWorld` mutation.
+   the beginning of the step and passes the diff to the `shared/aiWorld/game.ts:saveWorld` mutation.
 6. The `saveWorld` mutation applies the diff to the database, notices if any deleted objects need to be archived,
    updates the `participatedTogether` graph, and kicks off any scheduled jobs to run.
 7. Since the engine is the only mutator of game state, it continues to run steps for some amount of time
@@ -227,9 +228,9 @@ time and returns it for you to pass down into components.
 We also provide a `useSendInput` hook that wraps `useMutation` and automatically sends inputs to the server and
 waits for the engine to process them and return their outcome.
 
-## Agent architecture (`convex/agent`)
+## Agent architecture (`workers/src/agent`)
 
-### The agent loop (`convex/game/agents.ts`)
+### The agent loop (`shared/aiWorld/agent.ts`)
 
 Agents will execute any game state changes, and schedule operations to do anything that requires
 a long-lived request or accessing non-game tables. The flow generally is:
@@ -249,23 +250,23 @@ a long-lived request or accessing non-game tables. The flow generally is:
    is trying to do one thing at a time.
 8. `Agent.tick` then can observe the new game state and continue to make decisions.
 
-### Conversations (`convex/agent/conversations.ts`)
+### Conversations (`workers/src/agent/conversations.ts`)
 
 The agent code calls into the conversation layer which implements the prompt engineering for
 injecting personality and memories into the GPT responses. It has functions for starting a
 conversation (`startConversation`), continuing after the first message (`continueConversation`), and
 politely leaving a conversation (`leaveConversation`). Each function loads structured data from the
 database, queries the memory layer for the agent's opinion about the player they're talking with,
-and then calls into the OpenAI client (`convex/util/openai.ts`).
+and then calls into the OpenAI client (`shared/util/openai.ts`).
 
-### Memories (`convex/agent/memory.ts`)
+### Memories (`workers/src/agent/memory.ts`)
 
 After each conversation, GPT summarizes its message history, and we compute an embedding of the
 summary text and write it into Convex's vector database. Then, when starting a new conversation
 with, Danny, we embed "What you think about Danny?", find the three most similar memories, and fetch
 their summary texts to inject into the conversation prompt.
 
-### Embeddings cache (`convex/agent/embeddingsCache.ts`)
+### Embeddings cache (`workers/src/agent/embeddingsCache.ts`)
 
 To avoid computing the same embedding over and over again, we cache embeddings by a hash of their
 text in a Convex table.

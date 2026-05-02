@@ -1,4 +1,4 @@
-import { FieldConfig, History, unpackSampleRecord } from '../../convex/engine/historicalObject';
+import { FieldConfig, History, unpackSampleRecord } from '../../shared/engine/historicalObject';
 import { useMemo, useRef } from 'react';
 
 export function useHistoricalValue<T extends Record<string, number>>(

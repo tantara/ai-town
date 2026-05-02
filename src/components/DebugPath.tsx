@@ -1,8 +1,8 @@
 import { Graphics } from '@pixi/react';
 import { Graphics as PixiGraphics } from 'pixi.js';
 import { useCallback } from 'react';
-import { Player } from '../../convex/aiWorld/player';
-import { unpackPathComponent } from '../../convex/util/types';
+import { Player } from '../../shared/aiWorld/player';
+import { unpackPathComponent } from '../../shared/util/types';
 
 export function DebugPath({ player, tileDim }: { player: Player; tileDim: number }) {
   const path = player.pathfinding?.state.kind == 'moving' && player.pathfinding.state.path;

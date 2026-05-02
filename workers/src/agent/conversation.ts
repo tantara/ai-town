@@ -1,13 +1,13 @@
 // Builds LLM prompts for agent conversation messages. Port of
 // convex/agent/conversation.ts (start/continue/leave variants).
 
-import type { DB } from '../db/supabase';
+import type { DB } from '../../../shared/db/supabase';
 import type { Env } from '../env';
-import { chatCompletion, LLMMessage } from '../util/llm';
-import { listMessages } from '../db/repository';
+import { chatCompletion, LLMMessage } from '../../../shared/util/llm';
+import { listMessages } from '../../../shared/db/repository';
 import * as memory from './memory';
 import * as embeddingsCache from './embeddingsCache';
-import { NUM_MEMORIES_TO_SEARCH } from '../aiWorld/constants';
+import { NUM_MEMORIES_TO_SEARCH } from '../../../shared/aiWorld/constants';
 
 type PromptData = {
   player: { id: string; name: string };
