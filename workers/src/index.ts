@@ -28,6 +28,13 @@ const cors = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
+const REQUIRED_ENV: (keyof Env)[] = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'OPERATIONS_URL'];
+
+function checkEnv(env: Env): string | null {
+  const missing = REQUIRED_ENV.filter((k) => !env[k]);
+  return missing.length ? `Missing required env vars: ${missing.join(', ')}` : null;
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     if (request.method === 'OPTIONS') return new Response(null, { headers: cors });
@@ -35,6 +42,13 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname;
     try {
+      const envError = checkEnv(env);
+      if (envError) {
+        if (path === '/health') return json({ ok: false, error: envError }, 500);
+        console.error(envError);
+        return json({ error: envError }, 500);
+      }
+
       if (path === '/health') return json({ ok: true });
 
       if (path === '/agentOperations' && request.method === 'POST') {
