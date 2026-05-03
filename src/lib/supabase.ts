@@ -1,6 +1,7 @@
 'use client';
 
 import { createClient } from '@supabase/supabase-js';
+import { publicEnv } from './env';
 
 // Browser Supabase client. Uses the public anon key, so RLS policies in
 // supabase/migrations/00000000000001_init.sql control what the browser can
@@ -9,12 +10,11 @@ import { createClient } from '@supabase/supabase-js';
 let _client: ReturnType<typeof createClient> | undefined;
 export function supabase() {
   if (_client) return _client;
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !key) {
-    throw new Error('NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY must be set.');
-  }
-  _client = createClient(url, key, { auth: { persistSession: false } });
+  _client = createClient(
+    publicEnv('NEXT_PUBLIC_SUPABASE_URL'),
+    publicEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY'),
+    { auth: { persistSession: false } },
+  );
   return _client;
 }
 

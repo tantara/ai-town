@@ -16,6 +16,23 @@ import { useWorldState } from '../hooks/useWorldState';
 
 export const SHOW_DEBUG_UI = !!process.env.NEXT_PUBLIC_SHOW_DEBUG_UI;
 
+function GameStatusFrame({
+  title,
+  children,
+}: {
+  title: string;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="mx-auto w-full max-w grid lg:grow max-w-[1400px] min-h-[480px] game-frame">
+      <div className="flex flex-col items-center justify-center gap-2 bg-brown-900 p-8 text-center text-brown-100">
+        <h2 className="font-display text-3xl">{title}</h2>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 export default function Game() {
   const [selectedElement, setSelectedElement] = useState<{
     kind: 'player';
@@ -37,7 +54,31 @@ export default function Game() {
 
   const scrollViewRef = useRef<HTMLDivElement>(null);
 
-  if (!worldId || !engineId || !game) return null;
+  if (worldStatus === undefined) {
+    return <GameStatusFrame title="Loading the zoo…" />;
+  }
+  if (!worldId || !engineId) {
+    return (
+      <GameStatusFrame title="The zoo isn't seeded yet">
+        <p className="max-w-md text-base text-brown-300">
+          No default world found in Supabase. Run{' '}
+          <code className="rounded bg-brown-800 px-1">pnpm seed</code> against your Supabase
+          project to create one, then reload this page.
+        </p>
+      </GameStatusFrame>
+    );
+  }
+  if (!game) {
+    return (
+      <GameStatusFrame title="Connecting to the zoo…">
+        <p className="max-w-md text-base text-brown-300">
+          Waiting for the first world snapshot from the game server. If this persists, check that
+          your Cloudflare Worker is reachable at{' '}
+          <code className="rounded bg-brown-800 px-1">NEXT_PUBLIC_WORKER_URL</code>.
+        </p>
+      </GameStatusFrame>
+    );
+  }
   return (
     <>
       {SHOW_DEBUG_UI && <DebugTimeManager timeManager={timeManager} width={200} height={100} />}

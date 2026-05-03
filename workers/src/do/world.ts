@@ -141,8 +141,9 @@ export class WorldDO implements DurableObject {
   // safely talk to slow LLMs.
   private async dispatchAgentOperation(name: string, args: unknown) {
     if (!this.env.OPERATIONS_URL) {
-      console.warn('OPERATIONS_URL not set; agent operations disabled');
-      return;
+      throw new Error(
+        'OPERATIONS_URL is not set. Configure it via wrangler secret/vars so the DO can call back into the Worker.',
+      );
     }
     await fetch(this.env.OPERATIONS_URL, {
       method: 'POST',

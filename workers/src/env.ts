@@ -7,9 +7,9 @@ export interface Env {
   SUPABASE_SERVICE_ROLE_KEY: string;
 
   // URL the DO POSTs to when it wants the surrounding Worker to run an LLM
-  // operation. Should be `${publicWorkerUrl}/agentOperations`. Optional —
-  // when unset, agent operations are skipped (with a warning).
-  OPERATIONS_URL?: string;
+  // operation. Must be `${publicWorkerUrl}/agentOperations`. Required — without
+  // it, agents never generate messages and conversations hang silently.
+  OPERATIONS_URL: string;
 
   // LLM
   LLM_PROVIDER?: 'openai' | 'together' | 'ollama' | 'custom' | 'openrouter';

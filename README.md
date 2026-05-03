@@ -415,6 +415,15 @@ Then follow the steps under [Installation](#installation).
 
 ## Deploy the app to production
 
+Deploy in this order — each step depends on output from the previous one:
+
+1. **Supabase** (database + storage) → produces anon + service_role keys.
+2. **Cloudflare Worker** (game engine) → produces a public Worker URL.
+3. **Cloudflare Worker secret `OPERATIONS_URL`** → set to the URL from step 2 + `/agentOperations`,
+   then redeploy. The Worker now refuses requests if this is unset, so the redeploy is required.
+4. **Vercel** (frontend) → uses Worker URL from step 2 and Supabase keys from step 1.
+5. **Seed the world** → one-shot script, run from any machine with the service-role key.
+
 ### 1. Hosted Supabase
 
 Create a project at https://supabase.com/dashboard, then:
@@ -427,26 +436,58 @@ supabase storage create music --public      # for the music upload UI
 
 Grab the **anon key** and **service_role key** from Settings → API.
 
-### 2. Cloudflare Worker
+### 2. Cloudflare Worker (first deploy)
 
-Log in once with `pnpm --filter ai-zoo-worker exec wrangler login`, then:
+Log in once with `pnpm --filter ai-zoo-worker exec wrangler login`, then set the secrets that
+don't depend on the deployed URL and ship the Worker:
 
 ```sh
-# Set production secrets:
 pnpm --filter ai-zoo-worker exec wrangler secret put SUPABASE_URL
 pnpm --filter ai-zoo-worker exec wrangler secret put SUPABASE_SERVICE_ROLE_KEY
-# …plus your chosen LLM provider's keys.
-
-# Set OPERATIONS_URL to the deployed worker URL once you have it. It must
-# point back at this same Worker.
-# Example: ai-zoo.<your-account>.workers.dev/agentOperations.
+# …plus your chosen LLM provider's keys, e.g.
+# pnpm --filter ai-zoo-worker exec wrangler secret put OPENROUTER_API_KEY
 
 pnpm deploy:worker
 ```
 
-Wrangler prints the public URL — use it as `NEXT_PUBLIC_WORKER_URL` for the frontend.
+Wrangler prints the public URL (e.g. `https://ai-zoo.<account>.workers.dev`). Save it — you'll
+need it for both `OPERATIONS_URL` (next step) and `NEXT_PUBLIC_WORKER_URL` (Vercel).
 
-### 3. Seed the production world
+### 3. Cloudflare Worker (set `OPERATIONS_URL` and redeploy)
+
+`OPERATIONS_URL` is the URL the Durable Object POSTs back into to dispatch LLM operations. It
+must be **the same Worker's** `/agentOperations` endpoint. Without it, the Worker now returns
+`500 Missing required env vars: OPERATIONS_URL` on every request.
+
+```sh
+pnpm --filter ai-zoo-worker exec wrangler secret put OPERATIONS_URL
+# paste e.g. https://ai-zoo.<account>.workers.dev/agentOperations
+
+pnpm deploy:worker        # redeploy so the new secret is live
+curl https://ai-zoo.<account>.workers.dev/health    # should print {"ok":true}
+```
+
+If `/health` returns `{"ok":false,"error":"Missing required env vars: …"}`, fix the missing
+secret and redeploy before moving on.
+
+### 4. Deploy the frontend to Vercel
+
+- Register a Vercel account and [install the Vercel CLI](https://vercel.com/docs/cli).
+- **If you are using GitHub Codespaces:** install the Vercel CLI in your codespace and
+  authenticate with `vercel login`.
+- Deploy with `vercel --prod`. In the Vercel project settings, set:
+  - `NEXT_PUBLIC_SUPABASE_URL` — from step 1
+  - `NEXT_PUBLIC_SUPABASE_ANON_KEY` — from step 1
+  - `NEXT_PUBLIC_WORKER_URL` — the Worker URL from step 2 (without `/agentOperations`)
+  - `AUTH_SECRET` — generate with `openssl rand -base64 32`
+  - `GITHUB_ID` and `GITHUB_SECRET` — only if you want GitHub login (see below)
+- Vercel detects `pnpm` automatically from `pnpm-lock.yaml`. The default build command
+  (`pnpm build`) is correct.
+
+The frontend throws a clear error on first load if any of the `NEXT_PUBLIC_*` vars are missing,
+so a misconfigured deploy fails loudly rather than silently rendering a blank game.
+
+### 5. Seed the production world
 
 From any machine with the service-role key:
 
@@ -470,17 +511,6 @@ GITHUB_SECRET=<oauth client secret>
 ```
 
 Without these, only the guest credential provider is available.
-
-### Deploy the frontend to Vercel
-
-- Register a Vercel account and [install the Vercel CLI](https://vercel.com/docs/cli).
-- **If you are using GitHub Codespaces:** install the Vercel CLI in your codespace and
-  authenticate with `vercel login`.
-- Deploy with `vercel --prod`. Set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
-  `NEXT_PUBLIC_WORKER_URL`, `AUTH_SECRET`, `GITHUB_ID`, and `GITHUB_SECRET` in the Vercel
-  project settings.
-- Vercel detects `pnpm` automatically from `pnpm-lock.yaml`. The default build command
-  (`pnpm build`) is correct.
 
 ## Using local inference from a deployed Worker
 

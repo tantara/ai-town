@@ -12,6 +12,7 @@ import {
 import { Toaster } from '@/components/ui/sonner';
 
 import Game from './Game';
+import MissingEnvScreen from './MissingEnvScreen';
 import MusicButton from './buttons/MusicButton';
 import MusicUploadButton from './buttons/MusicUploadButton';
 import Button from './buttons/Button';
@@ -20,10 +21,14 @@ import FreezeButton from './FreezeButton';
 import LoginButton from './buttons/LoginButton';
 import UserButton from './buttons/UserButton';
 import { MAX_HUMAN_PLAYERS } from '../../shared/aiZoo/constants';
+import { missingPublicEnv } from '@/lib/env';
 
 export default function Home() {
   const [helpOpen, setHelpOpen] = useState(false);
   const { status } = useSession();
+
+  const missing = missingPublicEnv();
+  if (missing.length) return <MissingEnvScreen missing={missing} />;
 
   return (
     <main className="relative flex min-h-screen flex-col items-center justify-between font-body game-background">
@@ -90,7 +95,7 @@ export default function Home() {
             <FreezeButton />
             <MusicButton />
             <MusicUploadButton />
-            <Button href="https://github.com/a16z-infra/ai-town" imgUrl="/assets/star.svg">
+            <Button href="https://github.com/tantara/ai-town" imgUrl="/assets/star.svg">
               Star
             </Button>
             <InteractButton />
