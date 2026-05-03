@@ -1,6 +1,5 @@
-// Implements the agent operations originally in convex/aiWorld/agentOperations.ts.
-// Each operation runs in the Worker, then submits a follow-up input back to
-// the Durable Object via an HTTP POST.
+// Agent operations. Each runs in the Worker, then submits a follow-up input
+// back to the Durable Object via an HTTP POST.
 
 import type { DB } from '../../../shared/db/supabase';
 import type { Env } from '../env';
@@ -10,7 +9,7 @@ import {
   continueConversationMessage,
   leaveConversationMessage,
 } from './conversation';
-import { ACTIVITIES, ACTIVITY_COOLDOWN, CONVERSATION_COOLDOWN, PLAYER_CONVERSATION_COOLDOWN } from '../../../shared/aiWorld/constants';
+import { ACTIVITIES, ACTIVITY_COOLDOWN, CONVERSATION_COOLDOWN, PLAYER_CONVERSATION_COOLDOWN } from '../../../shared/aiZoo/constants';
 import { distance } from '../../../shared/util/geometry';
 import { sleep } from '../../../shared/util/sleep';
 import * as repo from '../../../shared/db/repository';

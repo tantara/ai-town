@@ -17,7 +17,7 @@ import type {
   SerializedConversation,
   SerializedPlayer,
   SerializedWorld,
-} from '../aiWorld/types';
+} from '../aiZoo/types';
 
 type Call = { table: string; method: string; args: unknown[] };
 

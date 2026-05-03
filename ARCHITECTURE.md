@@ -1,8 +1,8 @@
 # Architecture
 
-This documents dives into the high-level architecture of AI World and its different layers. We'll
+This documents dives into the high-level architecture of AI Zoo and its different layers. We'll
 first start with a brief overview and then go in-depth on each component. The overview should
-be sufficient for forking AI World and changing game or agent behavior. Read on to the deep dives
+be sufficient for forking AI Zoo and changing game or agent behavior. Read on to the deep dives
 if you're interested or running up against the engine's limitations.
 
 The runtime now lives on Cloudflare Workers + Durable Objects with Supabase
@@ -11,15 +11,15 @@ Postgres as the source of truth (replacing the original Convex backend). See
 
 ## Overview
 
-AI World is split into a few layers:
+AI Zoo is split into a few layers:
 
-- The server-side game logic in `shared/aiWorld`: This layer defines what state AI World maintains,
+- The server-side game logic in `shared/aiZoo`: This layer defines what state AI Zoo maintains,
   how it evolves over time, and how it reacts to user input. Both humans and agents submit inputs
   that the game engine processes.
-- The client-side game UI in `src/`: AI World uses `pixi-react` to render the game state to the
+- The client-side game UI in `src/`: AI Zoo uses `pixi-react` to render the game state to the
   browser for human consumption.
 - The game engine in `shared/engine`: To make it easy to hack on the game rules, we've separated
-  out the game engine from the AI World-specific game rules. The game engine is responsible for
+  out the game engine from the AI Zoo-specific game rules. The game engine is responsible for
   saving and loading game state from Postgres, coordinating feeding inputs into the engine,
   and actually running the game loop. The engine runs inside the per-world Cloudflare Durable
   Object (one DO instance per `worldId`); the DO Alarm drives the tick cadence.
@@ -29,27 +29,27 @@ AI World is split into a few layers:
   our agents use a combination of simple rule-based systems and talking to an LLM.
 
 So, if you'd like to tweak agent behavior but keep the same game mechanics, check out `workers/src/agent`
-for the async work, and `shared/aiWorld/agent.ts` for the game loop logic.
+for the async work, and `shared/aiZoo/agent.ts` for the game loop logic.
 If you would like to add new gameplay elements (that both humans and agents can interact with), add
-the feature to `shared/aiWorld`, render it in the UI in `src/`, and respond to it in `shared/aiWorld/agent.ts`.
+the feature to `shared/aiZoo`, render it in the UI in `src/`, and respond to it in `shared/aiZoo/agent.ts`.
 
 If you have parts of your game that are more latency sensitive, you can move them out of the
 engine into plain Postgres tables (read directly from the browser via `@supabase/supabase-js`,
 or pushed via Supabase Realtime), only logging key bits into game state. See "Message data
 model" below for an example.
 
-## AI World game logic (`shared/aiWorld`)
+## AI Zoo game logic (`shared/aiZoo`)
 
 ### Data model
 
-AI World's data model has a few concepts:
+AI Zoo's data model has a few concepts:
 
-- Worlds (`shared/aiWorld/world.ts`) represent a map with many players interacting together.
-- Players (`shared/aiWorld/player.ts`) are the core characters in the game. Players have human readable names and
+- Worlds (`shared/aiZoo/world.ts`) represent a map with many players interacting together.
+- Players (`shared/aiZoo/player.ts`) are the core characters in the game. Players have human readable names and
   descriptions, and they may be associated with a human user. At any point in time, a player may be pathfinding
   towards some destination and has a current location.
-- Conversations (`shared/aiWorld/conversations.ts`) are created by a player and end at some point in time.
-- Conversation memberships (`shared/aiWorld/conversationMembership.ts`) indicate that a player is a member
+- Conversations (`shared/aiZoo/conversations.ts`) are created by a player and end at some point in time.
+- Conversation memberships (`shared/aiZoo/conversationMembership.ts`) indicate that a player is a member
   of a conversation. Players may only be in one conversation at any point in time, and conversations
   currently have exactly two members. Memberships may be in one of three states:
   - `invited`: The player has been invited to the conversation but hasn't accepted yet.
@@ -71,21 +71,21 @@ categories:
 3. **Agent tables** (`memories`, `memory_embeddings`, `embeddings_cache`) for agent state.
    Agents read and write these from operations that run inside the Worker (not the DO).
 
-### Inputs (`shared/aiWorld/inputs.ts`)
+### Inputs (`shared/aiZoo/inputs.ts`)
 
-AI World modifies its data model by processing inputs. Inputs are submitted by players and agents
+AI Zoo modifies its data model by processing inputs. Inputs are submitted by players and agents
 and processed by the game engine. We specify inputs in the `inputs` object in
-`shared/aiWorld/inputs.ts`. Use the `inputHandler` function to construct an input handler. Input
+`shared/aiZoo/inputs.ts`. Use the `inputHandler` function to construct an input handler. Input
 arguments are validated at the Worker boundary by Zod schemas in `workers/src/index.ts` so the
 in-engine handlers can rely on already-typed payloads.
 
 - Joining (`join`) and leaving (`leave`) the game.
-- Moving a player to a particular location (`moveTo`): Movement in AI World is similar to RTS games, where
+- Moving a player to a particular location (`moveTo`): Movement in AI Zoo is similar to RTS games, where
   the players specify where they want to go, and the engine figures out how to get there.
 - Starting a conversation (`startConversation`), accepting an invite (`acceptInvite`), rejecting an invite
   (`rejectInvite`), and leaving a conversation (`leaveConversation`). To track typing indicators,
   you use `startTyping` and `finishSendingMessage`. These are imported from `game/conversations.ts`.
-- Agent inputs are imported from `aiWorld/agentInputs.ts` for things like remembering conversations,
+- Agent inputs are imported from `aiZoo/agentInputs.ts` for things like remembering conversations,
   deciding what to do, etc.
 
 Each of these inputs' implementation method checks invariants and updates game state as desired.
@@ -122,7 +122,7 @@ that the world doc uses.
 
 ## Game engine (`shared/engine`)
 
-Given the description of AI World's game behavior in the previous section,
+Given the description of AI Zoo's game behavior in the previous section,
 the `AbstractGame` class in `shared/engine/abstractGame.ts` implements actually running the simulation.
 The game engine has a few responsibilities:
 
@@ -133,7 +133,7 @@ The game engine has a few responsibilities:
 - Executing the game behavior efficiently inside the per-world Durable Object, minimizing input
   latency.
 
-AI World's game behavior is implemented in the `Game` subclass.
+AI Zoo's game behavior is implemented in the `Game` subclass.
 
 ### Input handling
 
@@ -154,11 +154,11 @@ The `Game` class specifies how it simulates time forward with the `tick` method:
 - Ticks are run at a high frequency, configurable with `tickDuration` (milliseconds). Since AI town has smooth motion
   for player movement, it runs at 60 ticks per second.
 - It's generally a good idea to break up game logic into separate systems that can be ticked forward independently.
-  For example, AI World's `tick` method advances pathfinding with `Player.tickPathfinding`, player positions with
+  For example, AI Zoo's `tick` method advances pathfinding with `Player.tickPathfinding`, player positions with
   `Player.tickPosition`, conversations with `Conversation.tick`, and `Agent.tick` for agent logic.
 
 To avoid hitting Postgres 60 times per second (which would be expensive and slow), the engine
-batches many ticks into a _step_. AI World runs steps at 1 per second. Here's how a step works:
+batches many ticks into a _step_. AI Zoo runs steps at 1 per second. Here's how a step works:
 
 1. Load the game state into memory (only on cold start; the DO keeps the parsed `Game` instance
    alive across steps).
@@ -249,7 +249,7 @@ components.
 
 ## Agent architecture (`workers/src/agent`)
 
-### The agent loop (`shared/aiWorld/agent.ts`)
+### The agent loop (`shared/aiZoo/agent.ts`)
 
 Agents execute any game state changes inline in the tick, and schedule operations to do anything
 that requires a long-lived request (LLM calls, vector search) or accessing non-game tables. The
@@ -298,7 +298,7 @@ their text in the Postgres `embeddings_cache` table.
 
 ## Design goals and limitations
 
-AI World's game engine has a few design goals:
+AI Zoo's game engine has a few design goals:
 
 - Stay close to "regular Postgres + WebSocket" usage. Game state lives in normal tables that
   are visible from the Supabase Studio, the dashboard, or `psql`.
@@ -324,4 +324,4 @@ These design goals imply some inherent limitations:
   cost of more Postgres writes per second and more WebSocket fanout traffic.
 - The game engine is designed to be single threaded. JavaScript operating over plain objects
   in-memory can be surprisingly fast, but if your simulation is very computationally expensive, it
-  may not be a good fit on AI World's engine today.
+  may not be a good fit on AI Zoo's engine today.

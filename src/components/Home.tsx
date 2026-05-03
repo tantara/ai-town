@@ -19,7 +19,7 @@ import InteractButton from './buttons/InteractButton';
 import FreezeButton from './FreezeButton';
 import LoginButton from './buttons/LoginButton';
 import UserButton from './buttons/UserButton';
-import { MAX_HUMAN_PLAYERS } from '../../shared/aiWorld/constants';
+import { MAX_HUMAN_PLAYERS } from '../../shared/aiZoo/constants';
 
 export default function Home() {
   const [helpOpen, setHelpOpen] = useState(false);

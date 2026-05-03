@@ -1,7 +1,7 @@
 import { Graphics } from '@pixi/react';
 import { Graphics as PixiGraphics } from 'pixi.js';
 import { useCallback } from 'react';
-import { Player } from '../../shared/aiWorld/player';
+import { Player } from '../../shared/aiZoo/player';
 import { unpackPathComponent } from '../../shared/util/types';
 
 export function DebugPath({ player, tileDim }: { player: Player; tileDim: number }) {

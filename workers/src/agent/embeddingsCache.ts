@@ -1,4 +1,4 @@
-// Cached embedding lookup. Mirrors convex/agent/embeddingsCache.ts.
+// Cached embedding lookup.
 
 import type { DB } from '../../../shared/db/supabase';
 import { fetchEmbedding } from '../../../shared/util/llm';

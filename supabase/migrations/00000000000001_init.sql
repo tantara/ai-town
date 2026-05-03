@@ -1,10 +1,7 @@
--- AI World schema for Supabase (Postgres).
--- Maps the Convex schema (convex/schema.ts, convex/aiWorld/schema.ts,
--- convex/agent/schema.ts, convex/engine/schema.ts) to relational tables.
+-- AI Zoo schema for Supabase (Postgres).
 --
--- Hot-path game state lives in JSONB columns because the original engine
--- replaces the entire world doc each tick — we keep that single-document
--- replace semantic, mediated by the Durable Object that owns the world.
+-- Hot-path game state lives in JSONB columns: the engine replaces the entire
+-- world doc each tick, mediated by the Durable Object that owns the world.
 
 create extension if not exists "pgcrypto";
 create extension if not exists "vector";
@@ -23,7 +20,7 @@ create table public.engines (
 );
 
 -- ---------------------------------------------------------------------------
--- worlds: single-document game state (mirrors convex aiWorld/world.ts).
+-- worlds: single-document game state (mirrors shared/aiZoo/world.ts).
 -- The `state` JSONB matches `serializedWorld`:
 --   { nextId, players[], conversations[], agents[], historicalLocations? }
 -- ---------------------------------------------------------------------------

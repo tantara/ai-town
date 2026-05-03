@@ -4,7 +4,7 @@
 
 import type { DB } from '../db/supabase';
 import * as repo from '../db/repository';
-import type { EngineDoc, EngineUpdate, GameStateDiff, InputDoc } from '../aiWorld/types';
+import type { EngineDoc, EngineUpdate, GameStateDiff, InputDoc } from '../aiZoo/types';
 
 export abstract class AbstractGame {
   abstract tickDuration: number;

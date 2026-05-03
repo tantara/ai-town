@@ -2,12 +2,12 @@ import { Character } from './Character';
 import { orientationDegrees } from '../../shared/util/geometry';
 import { characters } from '../../data/characters';
 import { toast } from 'sonner';
-import { Player as ServerPlayer } from '../../shared/aiWorld/player';
-import { GameId } from '../../shared/aiWorld/ids';
-import { Location, locationFields, playerLocation } from '../../shared/aiWorld/location';
+import { Player as ServerPlayer } from '../../shared/aiZoo/player';
+import { GameId } from '../../shared/aiZoo/ids';
+import { Location, locationFields, playerLocation } from '../../shared/aiZoo/location';
 import { useHistoricalValue } from '../hooks/useHistoricalValue';
-import { PlayerDescription } from '../../shared/aiWorld/playerDescription';
-import { WorldMap } from '../../shared/aiWorld/worldMap';
+import { PlayerDescription } from '../../shared/aiZoo/playerDescription';
+import { WorldMap } from '../../shared/aiZoo/worldMap';
 import { ServerGame } from '../hooks/serverGame';
 
 export type SelectElement = (element?: { kind: 'player'; id: GameId<'players'> }) => void;

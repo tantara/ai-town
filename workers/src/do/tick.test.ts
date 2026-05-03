@@ -7,7 +7,7 @@ import {
   type TickGame,
 } from './tick';
 import type { DB } from '../../../shared/db/supabase';
-import type { EngineUpdate, GameStateDiff, SerializedWorld } from '../../../shared/aiWorld/types';
+import type { EngineUpdate, GameStateDiff, SerializedWorld } from '../../../shared/aiZoo/types';
 
 // ---------- helpers ---------------------------------------------------------
 

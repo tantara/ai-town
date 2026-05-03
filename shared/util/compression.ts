@@ -1,4 +1,4 @@
-// Quantization + delta + RLE codecs (port of convex/util/compression.ts).
+// Quantization + delta + RLE codecs.
 
 export function quantize(values: number[], precision: number) {
   const factor = 1 << precision;

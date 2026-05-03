@@ -1,5 +1,3 @@
-// Verbatim copy of convex/constants.ts. No Convex dependency to begin with.
-
 export const ACTION_TIMEOUT = 120_000;
 export const IDLE_WORLD_TIMEOUT = 5 * 60 * 1000;
 export const WORLD_HEARTBEAT_INTERVAL = 60 * 1000;

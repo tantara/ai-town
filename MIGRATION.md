@@ -47,10 +47,10 @@ imported by both the Next.js frontend and the Cloudflare Worker.
 ## Layout
 
 ```
-ai-world/
+ai-zoo/
 ├── supabase/migrations/00000000000001_init.sql   # Postgres schema + RLS + RPC
 ├── shared/                                       # Shared TS used by both
-│   ├── aiWorld/              ← Player/Conversation/World/Map/etc data classes
+│   ├── aiZoo/              ← Player/Conversation/World/Map/etc data classes
 │   ├── engine/               ← AbstractGame, historicalObject
 │   ├── db/                   ← Supabase repository + admin client
 │   └── util/                 ← geometry, compression, types, llm client
@@ -109,7 +109,7 @@ OLLAMA_HOST=http://host.docker.internal:11434
 EOF
 ```
 
-For production, use `pnpm --filter ai-world-worker exec wrangler secret put …` instead.
+For production, use `pnpm --filter ai-zoo-worker exec wrangler secret put …` instead.
 
 ### 3. Run the stack
 
@@ -170,7 +170,7 @@ pnpm test
 Coverage today:
 
 - `shared/util/` — geometry, compression, asyncMap, minheap, types, object
-- `shared/aiWorld/` — ids, location
+- `shared/aiZoo/` — ids, location
 - `shared/engine/` — historicalObject
 - `shared/db/repository.test.ts` — engine inputs, world status, world
   heartbeat, message inserts, the four-query `loadGameState` aggregation, and

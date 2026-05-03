@@ -1,6 +1,5 @@
-// Concrete Game class. Mostly identical to convex/aiWorld/game.ts; the
-// difference is that load/save go through the Repository module instead of
-// ctx.db, and `agentOperations` are queued for the Worker to dispatch.
+// Concrete Game class. load/save go through the Repository module and
+// `agentOperations` are queued for the Worker to dispatch.
 
 import { AbstractGame } from '../engine/abstractGame';
 import { HistoricalObject } from '../engine/historicalObject';

@@ -1,7 +1,5 @@
-// Plain-TS shape declarations for serialized game state. These mirror the
-// `serialized*` schemas in convex/aiWorld/* but as TypeScript interfaces so
-// the engine code can run inside a Cloudflare Durable Object without pulling
-// in `convex/values`.
+// Plain-TS shape declarations for serialized game state. These run inside a
+// Cloudflare Durable Object with no Convex dependency.
 
 import { GameId } from './ids';
 import { Path, Point, Vector } from '../util/types';

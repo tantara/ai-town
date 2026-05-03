@@ -1,6 +1,5 @@
 // Agent long-term memory: stores summaries with embeddings, retrieves with
-// pgvector. This is a straight port of convex/agent/memory.ts adapted to use
-// Postgres rather than Convex's vectorSearch.
+// pgvector.
 
 import type { DB } from '../../../shared/db/supabase';
 import type { Env } from '../env';
