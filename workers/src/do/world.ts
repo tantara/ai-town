@@ -14,7 +14,7 @@
 import type { Env } from '../env';
 import { adminDb, DB } from '../../../shared/db/supabase';
 import * as repo from '../../../shared/db/repository';
-import { Game } from '../../../shared/aiWorld/game';
+import { Game } from '../../../shared/aiZoo/game';
 import { ClientMessage, handleClientMessage, runAlarmCycle } from './tick';
 
 export class WorldDO implements DurableObject {

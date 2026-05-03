@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { WORLD_HEARTBEAT_INTERVAL } from '../../shared/aiWorld/constants';
+import { WORLD_HEARTBEAT_INTERVAL } from '../../shared/aiZoo/constants';
 import { useDefaultWorldStatus } from './useWorldStatus';
 import { WORKER_URL } from '@/lib/supabase';
 

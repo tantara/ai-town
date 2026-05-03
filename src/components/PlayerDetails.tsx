@@ -8,7 +8,7 @@ import { SelectElement } from './Player';
 import { Messages } from './Messages';
 import { toastOnError } from '../toasts';
 import { useSendInput } from '../hooks/sendInput';
-import { GameId } from '../../shared/aiWorld/ids';
+import { GameId } from '../../shared/aiZoo/ids';
 import { ServerGame } from '../hooks/serverGame';
 import { useUserStatus } from '../hooks/useUserStatus';
 import { usePreviousConversation } from '../hooks/usePreviousConversation';

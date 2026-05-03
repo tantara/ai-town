@@ -1,6 +1,6 @@
-# AI World 🏠💻💌
+# AI Zoo 🏠💻💌
 
-> **AI World** is a fork of [a16z's AI Town](https://github.com/a16z-infra/ai-town).
+> **AI Zoo** is a fork of [a16z's AI Town](https://github.com/a16z-infra/ai-town).
 > The original was built on Convex; this fork is rebuilt as a **pnpm monorepo** on
 > **Next.js 16 + Supabase Postgres + Cloudflare Workers / Durable Objects**, with
 > NextAuth for sign-in and a 12-zodiac-animal cast of agents. See
@@ -9,12 +9,11 @@
 
 [Join the original community Discord: AI Stack Devs](https://discord.gg/PQUmTBTGmT)
 
-<img width="1454" alt="AI World screenshot" src="https://github.com/a16z-infra/ai-town/assets/3489963/a4c91f17-23ed-47ec-8c4e-9f9a8505057d">
+<img width="1454" alt="AI Zoo screenshot" src="https://github.com/a16z-infra/ai-town/assets/3489963/a4c91f17-23ed-47ec-8c4e-9f9a8505057d">
 
-AI World is a virtual world where AI characters live, chat, and socialize.
-
-This project is a deployable starter kit for easily building and customizing your own version of AI
-Town. Inspired by the research paper
+AI Zoo is a virtual habitat where AI animal agents — by default, the twelve Chinese zodiac
+animals — live, chat, and socialize. It is a deployable starter kit for building and
+customizing your own multi-agent simulation, inspired by the research paper
 [_Generative Agents: Interactive Simulacra of Human Behavior_](https://arxiv.org/pdf/2304.03442.pdf).
 
 The primary goal of this project, beyond just being a lot of fun to work on, is to provide a
@@ -24,7 +23,7 @@ from a simple project to play around with to a scalable, multi-player game.
 
 ## Overview
 
-- 🆚 [AI Town vs AI World](#ai-town-vs-ai-world)
+- 🆚 [AI Town vs AI Zoo](#ai-town-vs-ai-zoo)
 - 💻 [Stack](#stack)
 - 🧠 [Installation](#installation)
 - ▶️ [Run the stack](#run-the-stack)
@@ -34,13 +33,13 @@ from a simple project to play around with to a scalable, multi-player game.
 - 👩‍💻 [Deploying to production](#deploy-the-app-to-production)
 - 🐛 [Troubleshooting](#troubleshooting)
 
-## AI Town vs AI World
+## AI Town vs AI Zoo
 
-AI World is the same simulation idea as the upstream AI Town, but every infrastructure
+AI Zoo is the same simulation idea as the upstream AI Town, but every infrastructure
 decision and the cast of characters has been swapped out. The table below summarises what
 changed.
 
-| Layer                     | Original **AI Town**                                  | **AI World** (this fork)                                                                              |
+| Layer                     | Original **AI Town**                                  | **AI Zoo** (this fork)                                                                              |
 | ------------------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | Frontend framework        | Vite + React 18                                       | **Next.js 16 (App Router) + React 19**                                                                |
 | UI components             | Hand-rolled CSS, no design system                     | **shadcn/ui + Radix + Tailwind CSS**                                                                  |
@@ -91,11 +90,11 @@ Other credits:
 ## Repository layout
 
 ```
-ai-world/
+ai-zoo/
 ├── package.json                 ← root: Next.js app + workspace scripts
 ├── pnpm-workspace.yaml          ← lists `workers/` as a workspace package
 ├── workers/                     ← Cloudflare Worker + Durable Object package
-│   ├── package.json             ← name: ai-world-worker
+│   ├── package.json             ← name: ai-zoo-worker
 │   ├── wrangler.toml
 │   └── src/
 │       ├── index.ts             ← HTTP routes (incl. /freeze, /resume, /agentOperations)
@@ -104,7 +103,7 @@ ai-world/
 │       ├── lifecycle.ts         ← freezeWorld / resumeWorld helpers
 │       └── agent/               ← LLM operations + memory + prompts
 ├── shared/                      ← TypeScript shared between web and worker
-│   ├── aiWorld/                 ← Player/Conversation/World/Map/etc.
+│   ├── aiZoo/                  ← Player/Conversation/World/Map/etc.
 │   ├── engine/                  ← AbstractGame, historicalObject
 │   ├── db/                      ← Supabase repository + admin client
 │   └── util/                    ← geometry, compression, types, llm client
@@ -183,7 +182,7 @@ OLLAMA_HOST=http://host.docker.internal:11434
 EOF
 ```
 
-For **production** secrets, use `pnpm --filter ai-world-worker exec wrangler secret put …`.
+For **production** secrets, use `pnpm --filter ai-zoo-worker exec wrangler secret put …`.
 
 ### 4. Frontend env
 
@@ -211,7 +210,7 @@ If you want to start them separately:
 
 ```sh
 pnpm dev:web        # next dev only
-pnpm dev:worker     # wrangler dev only (alias for `pnpm --filter ai-world-worker dev`)
+pnpm dev:worker     # wrangler dev only (alias for `pnpm --filter ai-zoo-worker dev`)
 ```
 
 ### Seed the world
@@ -257,7 +256,7 @@ OPENAI_CHAT_MODEL=gpt-4o-mini              # optional
 OPENAI_EMBEDDING_MODEL=text-embedding-ada-002  # optional
 
 # Production:
-pnpm --filter ai-world-worker exec wrangler secret put OPENAI_API_KEY
+pnpm --filter ai-zoo-worker exec wrangler secret put OPENAI_API_KEY
 ```
 
 OpenAI's default embedding is 1536-dim. Edit `EMBEDDING_DIMENSION` in `shared/util/llm.ts` to
@@ -317,22 +316,13 @@ pnpm seed                        # re-creates default world + agents
    live in [`data/characters.ts`](./data/characters.ts). The default list is the 12 zodiac
    animals; replace them with whatever you want.
 
-2. **Spritesheets.** In `data/characters.ts`:
-
-   ```ts
-   export const characters = [
-     {
-       name: 'f1',
-       textureUrl: '/assets/32x32folk.png',
-       spritesheetData: f1SpritesheetData,
-       speed: 0.1,
-     },
-     ...
-   ];
-   ```
-
-   Find a sprite sheet for your character and define its motion / animations in the
-   corresponding `*SpritesheetData` constant.
+2. **Spritesheets.** Every zodiac animal currently shares the generic 32×32 walking
+   layout in [`data/animalSpritesheet.ts`](./data/animalSpritesheet.ts), which is
+   referenced from `ZODIAC_ANIMALS` in [`data/characters.ts`](./data/characters.ts).
+   Per-animal art lives at `/public/assets/animals/<id>.png` (with placeholder
+   fallbacks). To give an animal its own animation layout, add a new
+   `SpritesheetData` constant alongside `animalSpritesheet` and switch that
+   character's entry to point at it.
 
 3. **Background map.** The map is loaded from `data/gentle.js` and inserted into the `maps`
    table by `scripts/seed.ts`. To replace it:
@@ -348,7 +338,7 @@ pnpm seed                        # re-creates default world + agents
    This generates `converted-map.js`, which you can drop in next to `gentle.js` and import
    from `scripts/seed.ts`.
 
-4. **Background music (optional).** AI World ships with an in-game upload UI: log in, click
+4. **Background music (optional).** AI Zoo ships with an in-game upload UI: log in, click
    the small `+` next to the **Music** button, and pick an audio file. The browser uploads it
    into the `music` Supabase Storage bucket (created above) and inserts a row into
    `public.music`. The frontend always plays the most recent `kind = 'background'` track.
@@ -439,17 +429,17 @@ Grab the **anon key** and **service_role key** from Settings → API.
 
 ### 2. Cloudflare Worker
 
-Log in once with `pnpm --filter ai-world-worker exec wrangler login`, then:
+Log in once with `pnpm --filter ai-zoo-worker exec wrangler login`, then:
 
 ```sh
 # Set production secrets:
-pnpm --filter ai-world-worker exec wrangler secret put SUPABASE_URL
-pnpm --filter ai-world-worker exec wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+pnpm --filter ai-zoo-worker exec wrangler secret put SUPABASE_URL
+pnpm --filter ai-zoo-worker exec wrangler secret put SUPABASE_SERVICE_ROLE_KEY
 # …plus your chosen LLM provider's keys.
 
 # Set OPERATIONS_URL to the deployed worker URL once you have it. It must
 # point back at this same Worker.
-# Example: ai-world.<your-account>.workers.dev/agentOperations.
+# Example: ai-zoo.<your-account>.workers.dev/agentOperations.
 
 pnpm deploy:worker
 ```
@@ -463,7 +453,7 @@ From any machine with the service-role key:
 ```sh
 SUPABASE_URL=https://<ref>.supabase.co \
 SUPABASE_SERVICE_ROLE_KEY=… \
-WORKER_URL=https://ai-world.<account>.workers.dev \
+WORKER_URL=https://ai-zoo.<account>.workers.dev \
   pnpm seed
 ```
 
@@ -502,7 +492,7 @@ Steps:
 1. Set up either Tunnelmole or Ngrok (instructions below).
 2. Point the Worker at the tunnelled URL:
    ```sh
-   pnpm --filter ai-world-worker exec wrangler secret put OLLAMA_HOST
+   pnpm --filter ai-zoo-worker exec wrangler secret put OLLAMA_HOST
    # paste your tunnelmole/ngrok URL
    ```
 3. Add the tunnel domain to Ollama's allowlist (`OLLAMA_ORIGINS`). See
@@ -549,7 +539,7 @@ pnpm seed
 
 ### Worker can't reach Supabase
 
-- Run `pnpm --filter ai-world-worker exec wrangler tail` to see live logs.
+- Run `pnpm --filter ai-zoo-worker exec wrangler tail` to see live logs.
 - Make sure you used the **service_role** key (not the anon key) for the Worker secret —
   RLS blocks most writes for anon users.
 

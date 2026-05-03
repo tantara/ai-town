@@ -11,12 +11,12 @@ import {
   applyEngineUpdate,
 } from '../../../shared/engine/abstractGame';
 import * as repo from '../../../shared/db/repository';
-import { STEP_INTERVAL } from '../../../shared/aiWorld/constants';
+import { STEP_INTERVAL } from '../../../shared/aiZoo/constants';
 import type {
   EngineUpdate,
   GameStateDiff,
   SerializedWorld,
-} from '../../../shared/aiWorld/types';
+} from '../../../shared/aiZoo/types';
 
 export interface TickGame {
   engine: { id: string };

@@ -1,6 +1,5 @@
-// Pure-TS port of convex/util/types.ts. The Convex `v.*` validators are
-// replaced with structural TS types because the engine code never validated
-// these at runtime — that happens at the input boundary in the Worker.
+// Geometry primitives shared by the engine. Runtime validation happens at
+// the input boundary in the Worker.
 
 export type Point = { x: number; y: number };
 export type Vector = { dx: number; dy: number };

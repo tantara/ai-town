@@ -1,11 +1,11 @@
 'use client';
 
 import { useMemo } from 'react';
-import { GameId } from '../../shared/aiWorld/ids';
-import { AgentDescription } from '../../shared/aiWorld/agentDescription';
-import { PlayerDescription } from '../../shared/aiWorld/playerDescription';
-import { World } from '../../shared/aiWorld/world';
-import { WorldMap } from '../../shared/aiWorld/worldMap';
+import { GameId } from '../../shared/aiZoo/ids';
+import { AgentDescription } from '../../shared/aiZoo/agentDescription';
+import { PlayerDescription } from '../../shared/aiZoo/playerDescription';
+import { World } from '../../shared/aiZoo/world';
+import { WorldMap } from '../../shared/aiZoo/worldMap';
 import { parseMap } from '../../shared/util/object';
 import { useWorldState } from './useWorldState';
 import { useGameDescriptions } from './useGameDescriptions';

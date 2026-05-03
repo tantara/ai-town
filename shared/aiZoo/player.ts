@@ -164,7 +164,7 @@ export class Player {
 }
 
 // Player input handlers. Argument shapes are documented in the comment;
-// the Worker uses Zod (see workers/src/aiWorld/inputs.ts) to validate before
+// the Worker uses Zod (see workers/src/aiZoo/inputs.ts) to validate before
 // calling these handlers.
 export const playerInputs = {
   join: inputHandler<

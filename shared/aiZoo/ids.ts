@@ -1,6 +1,5 @@
-// Branded GameId<T> helper. Identical to convex/aiWorld/ids.ts but with the
-// `convex/values` runtime validators stripped — input validation is handled
-// at the Worker boundary with Zod.
+// Branded GameId<T> helper. Input validation is handled at the Worker boundary
+// with Zod.
 
 const IdShortCodes = { agents: 'a', conversations: 'c', players: 'p', operations: 'o' };
 export type IdTypes = keyof typeof IdShortCodes;

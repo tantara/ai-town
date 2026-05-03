@@ -1,5 +1,3 @@
-// Verbatim port of convex/engine/historicalObject.ts. No Convex dependencies.
-
 import { xxHash32 } from '../util/xxhash';
 import { compressSigned, uncompressSigned } from '../util/FastIntegerCompression';
 import {

@@ -4,8 +4,8 @@ import { useEffect, useRef } from 'react';
 
 import { MessageBubble, MessageRow } from '@/components/ui/message-bubble';
 import { MessageInput } from './MessageInput';
-import { Player } from '../../shared/aiWorld/player';
-import { Conversation } from '../../shared/aiWorld/conversation';
+import { Player } from '../../shared/aiZoo/player';
+import { Conversation } from '../../shared/aiZoo/conversation';
 import { useGameDescriptions } from '../hooks/useGameDescriptions';
 import { useMessages } from '../hooks/useMessages';
 
