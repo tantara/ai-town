@@ -193,6 +193,110 @@ End-to-end Supabase/Postgres + DO behaviour (real WebSocket framing,
 Hibernation, Postgres transactions) is still only exercised by running the
 full stack locally — see [README → Commands to run / test / debug](./README.md#commands-to-run--test--debug).
 
+## Deploy to production
+
+Targets: **hosted Supabase** (Postgres + Storage) + **Cloudflare Workers** + **Vercel** (Next.js).
+
+### 1. Supabase
+
+1. Create a new project at [supabase.com](https://supabase.com).
+2. Apply the schema. Either paste
+   `supabase/migrations/00000000000001_init.sql` into the SQL editor, or use the CLI:
+   ```sh
+   supabase db push --db-url "postgres://postgres:<password>@db.<ref>.supabase.co:5432/postgres"
+   ```
+3. From **Project Settings → API** copy:
+   - `Project URL` → note as `SUPABASE_URL`
+   - `anon public` key → note as `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `service_role` key → note as `SUPABASE_SERVICE_ROLE_KEY`
+
+> **Embedding dimension**: the schema declares `vector(1024)`, tuned for Ollama
+> `mxbai-embed-large`.  If you switch to OpenAI `text-embedding-ada-002` (1536-d)
+> or Together `m2-bert-80M-8k-retrieval` (768-d) you must update every
+> `vector(1024)` occurrence in the migration SQL **before** applying it, and
+> set `EMBEDDING_DIMENSION` in `shared/util/llm.ts` to match, then redeploy
+> the worker.
+
+### 2. Cloudflare Worker
+
+Deploy the worker first so you have its public hostname for `OPERATIONS_URL`:
+
+```sh
+pnpm --filter ai-zoo-worker exec wrangler deploy
+# → Deployed to https://ai-zoo.<your-account>.workers.dev
+```
+
+Then set secrets (one `wrangler secret put` per line):
+
+| Secret | Value |
+|---|---|
+| `SUPABASE_URL` | Project URL from step 1 |
+| `SUPABASE_SERVICE_ROLE_KEY` | Service-role key from step 1 |
+| `OPERATIONS_URL` | `https://<worker-hostname>/agentOperations` |
+| `LLM_PROVIDER` | `openai` \| `openrouter` \| `together` \| `custom` |
+| `OPENAI_API_KEY` | If `LLM_PROVIDER=openai` |
+| `OPENROUTER_API_KEY` | If `LLM_PROVIDER=openrouter` |
+| `TOGETHER_API_KEY` | If `LLM_PROVIDER=together` |
+| `LLM_API_URL` + `LLM_API_KEY` + `LLM_MODEL` + `LLM_EMBEDDING_MODEL` | If `LLM_PROVIDER=custom` |
+
+Optional model overrides: `OPENAI_CHAT_MODEL`, `OPENAI_EMBEDDING_MODEL`,
+`OPENROUTER_CHAT_MODEL`, `OPENROUTER_EMBEDDING_MODEL`, `TOGETHER_CHAT_MODEL`,
+`TOGETHER_EMBEDDING_MODEL`.
+
+```sh
+# Example — OpenAI
+pnpm --filter ai-zoo-worker exec wrangler secret put SUPABASE_URL
+pnpm --filter ai-zoo-worker exec wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+pnpm --filter ai-zoo-worker exec wrangler secret put OPERATIONS_URL
+pnpm --filter ai-zoo-worker exec wrangler secret put LLM_PROVIDER   # type: openai
+pnpm --filter ai-zoo-worker exec wrangler secret put OPENAI_API_KEY
+```
+
+Redeploy after setting secrets so the next warm-up picks them up:
+
+```sh
+pnpm --filter ai-zoo-worker exec wrangler deploy
+```
+
+### 3. Vercel (Next.js)
+
+In **Project Settings → Environment Variables** (all environments, or Production only):
+
+| Variable | Value |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key |
+| `NEXT_PUBLIC_WORKER_URL` | Worker URL from step 2 (no trailing slash) |
+| `SUPABASE_URL` | Supabase project URL (server-side music upload) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service-role key (server-side music upload) |
+| `AUTH_SECRET` | Random 32-byte string — `openssl rand -hex 32` |
+| `GITHUB_ID` | GitHub OAuth App client ID |
+| `GITHUB_SECRET` | GitHub OAuth App client secret |
+
+Then trigger a production deploy (or push to main if Vercel is connected to the repo).
+
+### 4. Seed the world
+
+Run once after the schema and worker are live:
+
+```sh
+SUPABASE_URL=https://<ref>.supabase.co \
+SUPABASE_SERVICE_ROLE_KEY=<service_role_key> \
+WORKER_URL=https://<worker-hostname> \
+pnpm seed
+```
+
+This creates the default engine, world, map, and queues a `createAgent` input
+for each character in `data/characters.ts`.  The DO picks them up on the next tick.
+
+### 5. Smoke test
+
+1. `POST https://<worker-hostname>/world/<worldId>/start` — returns `{"ok":true}`.
+2. Open the Vercel URL — the canvas renders and agents start moving.
+3. `POST .../world/<worldId>/freeze` — frontend shows world paused.
+4. `POST .../world/<worldId>/resume` — agents resume.
+5. In browser DevTools → Network → WS, confirm `worldStatus` and `snapshot` frames arrive on the `/world/<worldId>/ws` connection.
+
 ## Known TODOs
 
 - `useHistoricalValue` was not changed — it doesn't depend on Convex.

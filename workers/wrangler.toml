@@ -12,11 +12,19 @@ class_name = "WorldDO"
 tag = "v1"
 new_classes = ["WorldDO"]
 
-# Secrets (set via `wrangler secret put`):
-#   SUPABASE_URL
-#   SUPABASE_SERVICE_ROLE_KEY
-#   OPENAI_API_KEY                 (or OPENROUTER_API_KEY / TOGETHER_API_KEY / OLLAMA_HOST)
-#   LLM_PROVIDER                   (openai | openrouter | together | ollama | custom)
+# Secrets — set via `pnpm --filter ai-zoo-worker exec wrangler secret put <KEY>`:
+#   SUPABASE_URL              — Supabase project URL (https://xxx.supabase.co)
+#   SUPABASE_SERVICE_ROLE_KEY — Supabase service-role key
+#   OPERATIONS_URL            — https://<worker-hostname>/agentOperations
+#   LLM_PROVIDER              — openai | openrouter | together | custom
+#                               (omit for local Ollama; set OLLAMA_HOST instead)
+#   OPENAI_API_KEY            — if LLM_PROVIDER=openai
+#   OPENROUTER_API_KEY        — if LLM_PROVIDER=openrouter
+#   TOGETHER_API_KEY          — if LLM_PROVIDER=together
+#   LLM_API_URL / LLM_API_KEY / LLM_MODEL / LLM_EMBEDDING_MODEL
+#                             — if LLM_PROVIDER=custom
+#
+# Local dev only (.dev.vars — never commit this file):
+#   LLM_PROVIDER=ollama
+#   OLLAMA_HOST=http://host.docker.internal:11434
 [vars]
-LLM_PROVIDER = "ollama"
-OLLAMA_HOST  = "http://127.0.0.1:11434"
